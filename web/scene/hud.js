@@ -1,22 +1,11 @@
-// Waiting list, feed ticker, tab title, and the two optional sounds. Every string from the feed
-// goes through textContent. Chime and typing are off until the visitor turns them on.
-import { getQuality, toggleQuality } from './polish.js';
+// Waiting list, feed ticker, and tab title. Every string from the feed goes through textContent.
+// There is no audio: no chime, no typing sound, no AudioContext.
+import { getQuality, toggleQuality } from './polish.js?v=7';
 
-const CHIME_KEY = 'bothq.chime';
-const TYPE_KEY = 'bothq.typing';
 const BASE_TITLE = document.title || 'Grok Bot Dashboard';
 
 let onFocus = () => {};
-let root, list, ticker, chimeBtn, typeBtn, qualBtn;
-let prevWait = null;
-let audio = null, typing = null;
-
-function pref(key) {
-  try { return localStorage.getItem(key) === '1'; } catch { return false; }
-}
-function setPref(key, on) {
-  try { localStorage.setItem(key, on ? '1' : '0'); } catch { /* private mode */ }
-}
+let root, list, ticker, qualBtn;
 
 function el(tag, cls) {
   const n = document.createElement(tag);
@@ -36,19 +25,11 @@ export function initHud({ onFocus: focus, onFloor: floor } = {}) {
   const head = el('div', 'hq-wait-head');
   const title = el('b');
   title.textContent = 'Waiting';
-  chimeBtn = el('button', 'hq-wait-tog');
-  chimeBtn.type = 'button';
-  typeBtn = el('button', 'hq-wait-tog');
-  typeBtn.type = 'button';
-  chimeBtn.textContent = 'Chime';
-  typeBtn.textContent = 'Typing';
   qualBtn = el('button', 'hq-wait-tog');
   qualBtn.type = 'button';
   qualBtn.title = 'High draws bloom and dust. Low keeps the office lighter on a weak GPU.';
   qualBtn.addEventListener('click', () => { toggleQuality(); paintQuality(); });
-  chimeBtn.title = 'Chime when a bot starts waiting. Off until you turn it on.';
-  typeBtn.title = 'Soft typing while someone is working. Off until you turn it on.';
-  head.append(title, chimeBtn, typeBtn, qualBtn);
+  head.append(title, qualBtn);
   paintQuality();
   list = el('ol', 'hq-wait-list');
   root.append(head, list);
@@ -77,26 +58,9 @@ export function initHud({ onFocus: focus, onFloor: floor } = {}) {
   });
   tools.append(floorPill, needsBtn, teamBtn, menuBtn);
   document.body.append(tools, root, ticker);
-  paintToggles();
-  chimeBtn.addEventListener('click', () => { setPref(CHIME_KEY, !pref(CHIME_KEY)); paintToggles(); if (pref(CHIME_KEY)) unlock(); });
-  typeBtn.addEventListener('click', () => { setPref(TYPE_KEY, !pref(TYPE_KEY)); paintToggles(); if (pref(TYPE_KEY)) unlock(); });
 }
 
 function paintQuality() { if (qualBtn) qualBtn.textContent = getQuality() === 'high' ? 'High' : 'Low'; }
-
-function paintToggles() {
-  const c = pref(CHIME_KEY), t = pref(TYPE_KEY);
-  chimeBtn.setAttribute('aria-pressed', c ? 'true' : 'false');
-  typeBtn.setAttribute('aria-pressed', t ? 'true' : 'false');
-}
-
-function unlock() {
-  if (audio) return audio;
-  const Ctx = window.AudioContext || window.webkitAudioContext;
-  if (!Ctx) return null;
-  audio = new Ctx();
-  return audio;
-}
 
 export function renderHud(state, view) {
   if (!state) return;
@@ -149,8 +113,6 @@ export function renderHud(state, view) {
     list.append(more);
   }
   renderTicker(state);
-  noteNewWaiting(waiting);
-  syncTyping(bots.some((b) => (b.effective_status || b.status) === 'working'));
 }
 
 function renderTicker(state) {
@@ -179,53 +141,3 @@ function label(status) {
   return { working: 'working', idle: 'resting', waiting_user: 'waiting', error: 'error', stuck: 'stuck', done: 'done' }[status] || '';
 }
 
-function noteNewWaiting(waiting) {
-  const ids = new Set(waiting.map((b) => b.id));
-  if (prevWait) {
-    for (const id of ids) if (!prevWait.has(id) && pref(CHIME_KEY)) chime();
-  }
-  prevWait = ids;
-}
-
-function chime() {
-  const ctx = unlock();
-  if (!ctx) return;
-  const t = ctx.currentTime;
-  const o = ctx.createOscillator(), g = ctx.createGain();
-  o.type = 'sine';
-  o.frequency.setValueAtTime(880, t);
-  o.frequency.exponentialRampToValueAtTime(660, t + 0.18);
-  g.gain.setValueAtTime(0.0001, t);
-  g.gain.exponentialRampToValueAtTime(0.05, t + 0.02);
-  g.gain.exponentialRampToValueAtTime(0.0001, t + 0.35);
-  o.connect(g).connect(ctx.destination);
-  o.start(t); o.stop(t + 0.36);
-}
-
-function syncTyping(working) {
-  const want = working && pref(TYPE_KEY);
-  if (!want) { stopTyping(); return; }
-  const ctx = unlock();
-  if (!ctx || typing) return;
-  const buffer = ctx.createBuffer(1, ctx.sampleRate, ctx.sampleRate);
-  const data = buffer.getChannelData(0);
-  for (let i = 0; i < data.length; i++) data[i] = (Math.random() * 2 - 1) * (Math.random() < 0.08 ? 1 : 0.15);
-  const src = ctx.createBufferSource();
-  src.buffer = buffer;
-  src.loop = true;
-  const filter = ctx.createBiquadFilter();
-  filter.type = 'bandpass';
-  filter.frequency.value = 1800;
-  filter.Q.value = 0.7;
-  const g = ctx.createGain();
-  g.gain.value = 0.015;
-  src.connect(filter).connect(g).connect(ctx.destination);
-  src.start();
-  typing = { src, g };
-}
-
-function stopTyping() {
-  if (!typing) return;
-  try { typing.src.stop(); } catch { /* already stopped */ }
-  typing = null;
-}

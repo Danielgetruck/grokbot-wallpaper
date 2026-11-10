@@ -76,9 +76,6 @@ function workstationTemplate() {
   g.add(part(new THREE.ConeGeometry(0.07, 0.16, 6), 'plant', -0.52, 0.9, 0.95));
   g.add(part(new THREE.CylinderGeometry(0.008, 0.008, 0.22, 6), 'metal', 0.5, 0.86, 0.95));
   g.add(part(new THREE.SphereGeometry(0.045, 8, 6), 'lamp', 0.5, 1.0, 0.95));
-  // acoustic screen on the right, skipped on the lead desk so the circle stays open
-  g.add(part(new THREE.BoxGeometry(0.03, 0.42, 0.62), 'panel', 0.72, 0.98, 0.82, 0, 0, 0, { skipLead: true }));
-  g.add(part(new THREE.BoxGeometry(0.012, 0.46, 0.02), 'metal', 0.7, 0.78, 0.55, 0, 0, 0, { skipLead: true }));
 
   // ergonomic mesh chair, origin at the sitter's feet
   g.add(part(new THREE.CylinderGeometry(0.035, 0.04, 0.28, 10), 'metal', 0, 0.28, 0));
