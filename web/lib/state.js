@@ -105,7 +105,8 @@ function normBotsCfg(obj) {
     if (!v || typeof v !== 'object') continue;
     const e = {};
     if (typeof v.floor === 'string' && v.floor.trim()) e.floor = v.floor.trim();
-    if (typeof v.chat_url === 'string' && v.chat_url.trim() && !BAD_SCHEME.test(v.chat_url)) e.chat_url = v.chat_url.trim();
+    const chat = typeof v.chat_url === 'string' ? v.chat_url.trim() : '';
+    if (chat && !BAD_SCHEME.test(chat) && !/[\u0000-\u001f\s<>"']/.test(chat) && /^(grokbot|https):\/\//i.test(chat)) e.chat_url = chat;
     if (typeof v.avatar === 'string' && /^[\w.-]{1,64}$/.test(v.avatar)) e.avatar = v.avatar;
     if (typeof v.color === 'string' && HEX.test(v.color.trim())) e.color = v.color.trim().toUpperCase();
     const look = normLook(v.look);

@@ -22,6 +22,7 @@ const parts = [
   ['web', 'office', /^(index\.html|app\.js|styles\.css|wallpaper\.js|feed\.js)$/],
   ['web/lib', 'office/lib', /\.(js|css|json)$/, { deep: true, optional: true }],
   ['web/scene', 'office/scene', /\.(js|css)$/],
+  ['web/vendor', 'office/vendor', /\.js$/, { deep: true }],
   ['web/ui', 'office/ui', /\.(js|css)$/],
   ['web/audio', 'office/audio', /\.(js|m4a)$/],
   ['web/share', 'office/share', /\.(js|css)$/],

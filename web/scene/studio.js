@@ -15,10 +15,10 @@ import { Pass, FullScreenQuad } from 'three/addons/postprocessing/Pass.js';
 // All distances are CSS px at a 1080 px tall frame; they scale with the frame height and with the camera zoom
 // (the aura belongs to the building, so it grows and shrinks with it).
 export const STUDIO = {
-  centre: [0.5, 0.45],                                    // where the light pools (fraction of the frame, y down)
-  radii: [0.82, 0.78],                                    // ellipse the fall-off reaches its edge colour at
-  stops: [[0, '#FFFFFF'], [0.5, '#F8F8FA'], [1, '#E6E7EB']],
-  shadow: '#0B0C11',                                      // cool near-black, never pure black
+  centre: [0.48, 0.42],                                   // where the violet pools (fraction of the frame, y down)
+  radii: [0.86, 0.8],                                     // ellipse the fall-off reaches its edge colour at
+  stops: [[0, '#3B1764'], [0.46, '#1A0C2E'], [1, '#090612']],
+  shadow: '#14081C',                                      // deep plum, never a flat grey
   layers: [                                               // sigma (px), push down (px), strength at the silhouette edge
     { sigma: 4, down: 2, w: 0.40 },                       // contact: a thin dark seam that grounds the edge
     { sigma: 30, down: 22, w: 0.40 },                     // penumbra: the body of the aura
@@ -63,7 +63,7 @@ const COMPOSE_FS = /* glsl */`
   uniform vec3 stop0, stop1, stop2, shadowC;
   uniform vec2 centre, radii, push[3];
   uniform vec3 layerW;
-  uniform float stopMid;
+  uniform float stopMid, uPulse;
   varying vec2 vUv;
 
   float hash( vec2 p ) { vec3 q = fract( vec3( p.xyx ) * 0.1031 ); q += dot( q, q.yzx + 33.33 ); return fract( ( q.x + q.y ) * q.z ); }
@@ -82,6 +82,10 @@ const COMPOSE_FS = /* glsl */`
     float dens = 1.0 - ( 1.0 - a0 ) * ( 1.0 - a1 ) * ( 1.0 - a2 );
     dens *= 1.0 - smoothstep( 0.5, 0.9, texture2D( tHold, vUv ).r );    // nothing inside the silhouette: clear glass stays clear
     bg = mix( bg, shadowC, dens );
+
+    // a soft violet pool behind the office; uPulse breathes it (0..1)
+    float gd = length( ( vUv - vec2( 0.47, 0.56 ) ) / vec2( 0.40, 0.34 ) );
+    bg += vec3( 0.62, 0.26, 1.0 ) * exp( -2.2 * gd * gd ) * ( 0.22 + 0.28 * uPulse );
 
     vec3 rgb = c.rgb + bg * ( 1.0 - c.a );                              // c is premultiplied
     float n = hash( gl_FragCoord.xy ) + hash( gl_FragCoord.xy + 17.31 ) - 1.0;   // triangular dither, +-1 level
@@ -112,6 +116,7 @@ export class StudioPass extends Pass {
         centre: { value: new THREE.Vector2(...STUDIO.centre) }, radii: { value: new THREE.Vector2(...STUDIO.radii) },
         push: { value: [new THREE.Vector2(), new THREE.Vector2(), new THREE.Vector2()] },
         layerW: { value: new THREE.Vector3(L0.w, L1.w, L2.w) },
+        uPulse: { value: 0.5 },
       },
       vertexShader: QUAD_VS, fragmentShader: COMPOSE_FS, depthTest: false, depthWrite: false,
     });
@@ -186,6 +191,8 @@ export class StudioPass extends Pass {
     u.tL2.value = t.wA.texture;
     STUDIO.layers.forEach((l, i) => u.push.value[i].set(0, (l.down * unit) / H));
     u.layerW.value.set(STUDIO.layers[0].w, STUDIO.layers[1].w * soften, STUDIO.layers[2].w * soften);
+    const breathe = StudioPass.reduceMotion ? 0.35 : 0.5 + 0.5 * Math.sin(performance.now() * 0.00115);
+    u.uPulse.value = breathe;
     this.fsQuad.material = this.composeMat;
     renderer.setRenderTarget(this.renderToScreen ? null : writeBuffer);
     if (this.clear) renderer.clear();
@@ -198,3 +205,5 @@ export class StudioPass extends Pass {
     this.fsQuad.dispose();
   }
 }
+
+StudioPass.reduceMotion = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;

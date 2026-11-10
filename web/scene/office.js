@@ -4,6 +4,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { buildFloorStyles } from './floorstyle.js';
+import { installPrivateDesks } from './desks.js';
 
 export const DESK_COUNT = 20;
 export const LOUNGE_COUNT = 6;
@@ -62,7 +63,27 @@ function finish(templates, spots, nightMaps, source) {
   } catch (err) {
     console.warn('[office] floor styles skipped:', err.message);
   }
+  recolorShell(templates);
+  try { installPrivateDesks(templates.floor_open, spots); }
+  catch (err) { console.warn('[office] private desks skipped:', err.message); }
   return { templates, spots, nightMaps, source, style };
+}
+
+// The cutaway shell (solid wall, slab edge) is a plain PBR colour, not a lightmap. Shift it into the same
+// plum / lilac family as the baked floor and wall. Lightmaps themselves are tinted in daylight.js.
+function recolorShell(templates) {
+  const wall = new THREE.Color(0xC9B6E4);
+  const slab = new THREE.Color(0x3A2158);
+  for (const root of Object.values(templates)) {
+    root.traverse((o) => {
+      if (!o.isMesh) return;
+      for (const m of [].concat(o.material)) {
+        if (!m || m.userData.roomTinted) continue;
+        if (m.name === 'wall_white') { m.color.copy(wall); m.userData.roomTinted = true; }
+        else if (m.name === 'slab_white') { m.color.copy(slab); m.userData.roomTinted = true; }
+      }
+    });
+  }
 }
 
 // Baked surfaces are unlit: day lightmap as a basic material (night map is mixed in by the instance patch).
@@ -211,18 +232,20 @@ function buildPlaceholder() {
   mkWallQuad('task_board', 3.0, 1.5, 0.1, 1.45);
   for (const [w, h, z, y] of [[2.68, 1.54, -4.3, 1.5], [3.08, 1.58, 0.1, 1.45]]) addBox(open, M.black, 0.03, h, w, -7.985, y, z);
 
-  // two long oak communal tables, 5 poufs per side
+  // two long communal tables, replaced by one desk per seat (desks.js). Kept so the seat empties and
+  // laptop screens still exist, then hidden (userData.sharedBench / the table names).
+  const share = (mesh) => { mesh.userData.sharedBench = true; return mesh; };
   const lap = [];
   for (let t = 0; t < 2; t++) {
     const z0 = TABLE_Z[t];
-    addBox(open, M.oak, TABLE_LEN, 0.05, TABLE_W, TABLE_X, 0.725, z0);
-    for (const lx of [-4.1, -1.4, 1.4, 4.1]) for (const s of [-1, 1]) addBox(open, M.black, 0.05, 0.7, 0.05, TABLE_X + lx, 0.35, z0 + s * 0.48);
-    for (const lx of [-4.1, 4.1]) addBox(open, M.black, 0.04, 0.04, 0.96, TABLE_X + lx, 0.1, z0);
+    share(addBox(open, M.oak, TABLE_LEN, 0.05, TABLE_W, TABLE_X, 0.725, z0)).name = `table_${t + 1}`;
+    for (const lx of [-4.1, -1.4, 1.4, 4.1]) for (const s of [-1, 1]) share(addBox(open, M.black, 0.05, 0.7, 0.05, TABLE_X + lx, 0.35, z0 + s * 0.48));
+    for (const lx of [-4.1, 4.1]) share(addBox(open, M.black, 0.04, 0.04, 0.96, TABLE_X + lx, 0.1, z0));
     for (let i = 0; i < 10; i++) {
       const n = t * 10 + i + 1;
       const pair = Math.floor(i / 2), far = i % 2 === 0;
       const x = PAIR_X[pair], sz = far ? -1 : 1;
-      addCyl(open, M.fabric, 0.26, 0.29, SEAT_Y, x, SEAT_Y / 2, z0 + sz * 1.05);
+      share(addCyl(open, M.fabric, 0.26, 0.29, SEAT_Y, x, SEAT_Y / 2, z0 + sz * 1.05));
       empty(open, `desk_${String(n).padStart(2, '0')}`, x, SEAT_Y, z0 + sz * 1.05, far ? 0 : Math.PI);
       // laptop on the table, screen facing the seat
       const g = new THREE.Group();
@@ -238,9 +261,10 @@ function buildPlaceholder() {
       scr.position.set(0, 0.105, 0.0045);
       lid.add(scr);
       g.add(lid);
+      g.traverse((o) => { if (o.isMesh && !/^laptop_screen_/.test(o.name)) o.userData.sharedBench = true; });
       open.add(g);
       lap.push([n, scr, far]);
-      if (i % 3 === 1) addCyl(open, M.mug, 0.04, 0.035, 0.09, x + 0.38, 0.795, z0 + sz * 0.1, 14);
+      if (i % 3 === 1) share(addCyl(open, M.mug, 0.04, 0.035, 0.09, x + 0.38, 0.795, z0 + sz * 0.1, 14));
     }
   }
   open.updateMatrixWorld(true);

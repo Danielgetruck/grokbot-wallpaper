@@ -60,10 +60,10 @@
   --alert-ink: color-mix(in srgb, #FFC266 var(--n), #9A5B00);
   --alert-strong: color-mix(in srgb, #FFD590 var(--n), #7A4600);
 
-  /* page + scene backdrop */
-  --bg-0: color-mix(in srgb, #1B2240 var(--n), #FFFFFF);
-  --bg-1: color-mix(in srgb, #10162B var(--n), #F3F4F6);
-  --bg-2: color-mix(in srgb, #080B18 var(--n), #E7E9ED);
+  /* page + scene backdrop: black into violet in both day and night (the WebGL studio pass uses the same stops) */
+  --bg-0: color-mix(in srgb, #241038 var(--n), #3B1764);
+  --bg-1: color-mix(in srgb, #100818 var(--n), #1A0C2E);
+  --bg-2: color-mix(in srgb, #05030c var(--n), #090612);
 
   /* layout */
   --gutter: 24px;
@@ -94,6 +94,7 @@
 
 @media (prefers-reduced-motion: reduce) {
   :root.bhq-ready { transition: none; }
+  #scene::after { animation: none; opacity: 0.75; }
 }
 
 /* Solid panels when the OS asks for less transparency. */
@@ -136,10 +137,22 @@ body {
 #scene:active { cursor: grabbing; }
 #scene.is-hovering { cursor: pointer; }
 #scene canvas { display: block; width: 100%; height: 100%; }
+/* violet pool over the studio backdrop; the panels sit above #scene so this does not wash the UI */
+#scene::after {
+  content: "";
+  position: absolute; inset: 0; z-index: 2; pointer-events: none;
+  background: radial-gradient(ellipse 52% 44% at 48% 44%, rgba(167, 85, 247, .16), transparent 68%);
+  mix-blend-mode: screen;
+  animation: bq-glow 8s ease-in-out infinite;
+}
+@keyframes bq-glow {
+  0%, 100% { opacity: .55; }
+  50% { opacity: 1; }
+}
 .hq-labels { position: absolute; inset: 0; pointer-events: none; }
 .hq-loading {
   position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
-  font-size: 13px; color: var(--muted); letter-spacing: .02em;
+  font-size: 13px; color: #EDE4FF; letter-spacing: .02em;
 }
 
 /* Overlay containers never block the scene; only the panels inside them take pointer events. */
