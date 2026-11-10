@@ -244,8 +244,9 @@ function sync() {
     if (!actor) {
       actor = new Actor(bot, { parent: inst.root, inst, pickables, confetti, cursor, dropDelay: delay, now: nowSec });
       actors.set(bot.id, actor);
-      attachModel(actor, bot);
+      if (!hall) attachModel(actor, bot);
     }
+    if (hall) actor.setWorker(bot);
     actor.ctx.now = nowSec;
     actor.ctx.names = hall && isPortraitPhone();
     const family = !hall && team && team.has(bot.id);

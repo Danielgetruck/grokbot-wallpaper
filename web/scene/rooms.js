@@ -1,6 +1,7 @@
 // One walled room per team, packed into a single hall. Group names are canvas text, drawn so Hebrew stays RTL.
 import * as THREE from 'three';
 import { isFamilyName, isLeadName } from './modteam.js';
+import { buildFurniture } from './furniture.js';
 
 const ACCENT = [0xc084fc, 0x22d3ee, 0xf0abfc, 0xa78bfa, 0x67e8f9, 0xe9d5ff, 0xfbbf24, 0x818cf8];
 
@@ -182,80 +183,42 @@ function addWall(g, x, z, w, d, mat, neon) {
 const lit = (color, roughness, metalness, emissive = 0x000000, emissiveIntensity = 0) =>
   new THREE.MeshStandardMaterial({ color, roughness, metalness, emissive, emissiveIntensity });
 
-function addWorkstation(parent, spot, accentHex) {
-  const g = new THREE.Group();
-  g.position.set(spot.pos.x, 0, spot.pos.z);
-  g.rotation.y = spot.yaw || 0;
-
-  const wood = lit(0x6b4a32, 0.55, 0.06);
-  const metal = lit(0xc5c8d0, 0.28, 0.82);
-  const fabric = lit(0x2c2640, 0.86, 0.02);
-  const plastic = lit(0x1c1e26, 0.4, 0.45);
-  const screen = lit(0x9ecbff, 0.2, 0.1, 0x7ec8ff, 0.55);
-
-  const seat = new THREE.Mesh(new THREE.BoxGeometry(0.48, 0.07, 0.46), fabric);
-  seat.position.set(0, 0.48, 0);
-  seat.castShadow = true;
-  const back = new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.46, 0.06), fabric);
-  back.position.set(0, 0.78, -0.2);
-  back.castShadow = true;
-  const post = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.04, 0.32, 12), metal);
-  post.position.set(0, 0.28, 0);
-  const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.03, 12), metal);
-  hub.position.set(0, 0.1, 0);
-  g.add(seat, back, post, hub);
-  for (let i = 0; i < 5; i++) {
-    const a = (i / 5) * Math.PI * 2;
-    const arm = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.025, 0.04), metal);
-    arm.position.set(Math.cos(a) * 0.12, 0.08, Math.sin(a) * 0.12);
-    arm.rotation.y = -a;
-    const wheel = new THREE.Mesh(new THREE.SphereGeometry(0.035, 10, 8), plastic);
-    wheel.position.set(Math.cos(a) * 0.22, 0.035, Math.sin(a) * 0.22);
-    g.add(arm, wheel);
+let carpetMap = null;
+function carpetTiles() {
+  if (carpetMap) return carpetMap;
+  const c = document.createElement('canvas');
+  c.width = 512; c.height = 512;
+  const g = c.getContext('2d');
+  const tile = 64;
+  for (let y = 0; y < 512; y += tile) for (let x = 0; x < 512; x += tile) {
+    const alt = ((x / tile) + (y / tile)) % 2 === 0;
+    g.fillStyle = alt ? '#d9d4cc' : '#c9c3ba';
+    g.fillRect(x, y, tile, tile);
+    g.strokeStyle = 'rgba(80,70,60,0.35)';
+    g.strokeRect(x + 0.5, y + 0.5, tile - 1, tile - 1);
   }
+  carpetMap = new THREE.CanvasTexture(c);
+  carpetMap.wrapS = carpetMap.wrapT = THREE.RepeatWrapping;
+  carpetMap.colorSpace = THREE.SRGBColorSpace;
+  carpetMap.anisotropy = 8;
+  return carpetMap;
+}
 
-  const top = new THREE.Mesh(new THREE.BoxGeometry(1.25, 0.05, 0.66), wood);
-  top.position.set(0, 0.74, 0.78);
-  top.castShadow = true;
-  top.receiveShadow = true;
-  g.add(top);
-  const hx = 0.54, hz = 0.26;
-  for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
-    const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.018, 0.7, 10), metal);
-    leg.position.set(sx * hx, 0.36, 0.78 + sz * hz);
-    leg.castShadow = true;
-    g.add(leg);
+function carpetMaterial(color) {
+  const map = carpetTiles().clone();
+  map.repeat.set(4, 3);
+  map.needsUpdate = true;
+  return new THREE.MeshStandardMaterial({ map, color, roughness: 0.92, metalness: 0.02 });
+}
+
+function addCeiling(g, room) {
+  const fixture = new THREE.MeshStandardMaterial({ color: 0xd9d3c8, emissive: 0xffe7c2, emissiveIntensity: 0.28, roughness: 0.5 });
+  const w = Math.min(room.w * 0.28, 1.4);
+  for (const z of [-room.d * 0.16, room.d * 0.16]) {
+    const bar = new THREE.Mesh(new THREE.BoxGeometry(w, 0.035, 0.22), fixture);
+    bar.position.set(0, 2.45, z);
+    g.add(bar);
   }
-  const edge = new THREE.Mesh(new THREE.BoxGeometry(1.28, 0.018, 0.7), new THREE.MeshBasicMaterial({
-    color: accentHex, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false,
-  }));
-  edge.position.set(0, 0.71, 0.78);
-  g.add(edge);
-
-  const stand = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.028, 0.12, 10), metal);
-  stand.position.set(0, 0.82, 1.0);
-  const neck = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.16, 0.03), metal);
-  neck.position.set(0, 0.94, 1.0);
-  const bezel = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.38, 0.03), plastic);
-  bezel.position.set(0, 1.12, 1.0);
-  bezel.rotation.x = -0.12;
-  bezel.castShadow = true;
-  const panel = new THREE.Mesh(new THREE.PlaneGeometry(0.54, 0.3), screen);
-  panel.position.set(0, 1.12, 1.02);
-  panel.rotation.x = -0.12;
-  const keys = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.02, 0.14), plastic);
-  keys.position.set(0, 0.78, 0.7);
-  g.add(stand, neck, bezel, panel, keys);
-
-  if (spot.lead) {
-    const ring = new THREE.Mesh(new THREE.RingGeometry(0.85, 1.05, 48), new THREE.MeshBasicMaterial({
-      color: 0xe9d5ff, transparent: true, opacity: 0.95, side: THREE.DoubleSide, blending: THREE.AdditiveBlending, depthWrite: false,
-    }));
-    ring.rotation.x = -Math.PI / 2;
-    ring.position.y = 0.03;
-    g.add(ring);
-  }
-  parent.add(g);
 }
 
 function addLounge(root, at) {
@@ -338,12 +301,13 @@ export function buildHall(parent, layout) {
     g.add(arch);
     const carpet = new THREE.Mesh(
       new THREE.PlaneGeometry(room.w - 0.3, room.d - 0.3),
-      new THREE.MeshStandardMaterial({ color: room.color, roughness: 0.88, metalness: 0.02, transparent: true, opacity: 0.22 }),
+      carpetMaterial(room.color),
     );
     carpet.rotation.x = -Math.PI / 2;
     carpet.position.y = 0.02;
     carpet.receiveShadow = true;
     g.add(carpet);
+    addCeiling(g, room);
 
     const sw = Math.min(room.w * 0.46, 3.6);
     const sh = 0.52;
@@ -367,7 +331,7 @@ export function buildHall(parent, layout) {
     root.add(g);
   }
   if (layout.lounge) addLounge(root, layout.lounge);
-  for (const [, s] of layout.spots) addWorkstation(root, s, 0xc084fc);
+  buildFurniture(root, [...layout.spots.values()]);
   parent.add(root);
   return root;
 }

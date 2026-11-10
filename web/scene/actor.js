@@ -4,6 +4,8 @@
 import * as THREE from 'three';
 import { CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
 import { Spring, REDUCED, clamp, smoothstep } from './spring.js';
+import { createWorker } from './worker.js';
+import { isLeadName } from './modteam.js';
 
 export const STATUS_COLOR = {
   working: '#34C759', idle: '#A1A1A6', waiting_user: '#FF9F0A', error: '#FF3B30', stuck: '#FF9500', done: '#0A84FF',
@@ -135,6 +137,19 @@ export class Actor {
     this.tag.position.y = box.max.y + 0.24;                       // pill floats just above this blob's head
     this.say.position.y = box.max.y + 0.55;
     this.useModel(model, eyes, false);
+  }
+
+  setWorker(bot) {
+    const color = bot?.look?.color || bot?.color || '#7c6cff';
+    const lead = isLeadName(bot?.name);
+    const key = `${color}|${lead ? 1 : 0}`;
+    if (this.workerKey === key) return;
+    this.workerKey = key;
+    const w = createWorker({ color, lead });
+    this.worker = w;
+    this.useModel(w.group, w.eyes, false);
+    this.tag.position.y = 1.42;
+    this.say.position.y = 1.62;
   }
 
   useModel(model, eyes, placeholder) {
@@ -306,14 +321,14 @@ export class Actor {
     if (!REDUCED) {
       const breathe = Math.sin(t * 2.1 + this.phase);
       sy = 1 + 0.018 * breathe; sx = 1 - 0.012 * breathe;
-      if (s === 'working') { y = 0.02 * Math.abs(Math.sin(t * 11 + this.phase)); rx = 0.14 + 0.05 * Math.sin(t * 14 + this.phase); }
+      if (s === 'working' && !this.worker) { y = 0.02 * Math.abs(Math.sin(t * 11 + this.phase)); rx = 0.14 + 0.05 * Math.sin(t * 14 + this.phase); }
       if (s === 'stuck') rz = 0.09 * Math.sin(t * 1.3 + this.phase);
       if (s === 'error') {
         const k = (t + this.phase) % 1.6;
         if (k < 0.45) ox = 0.03 * Math.sin(k * 70);
       }
     }
-    if (s === 'waiting_user' && !this.anim && !this.spotIsLounge()) {
+    if (s === 'waiting_user' && !this.worker && !this.anim && !this.spotIsLounge()) {
       y += 0.34;                                              // stand up off the chair
       if (!REDUCED) rz += 0.28 * Math.sin(t * 7 + this.phase); // wave
     }
@@ -394,7 +409,24 @@ export class Actor {
     this.refreshSay(t);
 
     this.tickEyes(dt);
+    this.tickWorker(t);
     if (this.retiring && this.scaleS.x < 0.03) { this.dead = true; this.dispose(); }
+  }
+
+  tickWorker(t) {
+    const w = this.worker;
+    if (!w) return;
+    const s = this.status;
+    const typing = s === 'working' && !REDUCED;
+    const look = s === 'idle' && !REDUCED ? Math.sin(t * 0.45 + this.phase) * 0.4 : 0;
+    w.head.rotation.y = look;
+    w.head.rotation.x = typing ? 0.12 : 0.04;
+    const bob = typing ? Math.sin(t * 14 + this.phase) * 0.12 : 0;
+    w.armL.rotation.x = bob;
+    w.armR.rotation.x = typing ? Math.sin(t * 14 + this.phase + 1.1) * 0.12 : 0;
+    const raise = (s === 'waiting_user' || s === 'error') && !REDUCED ? 1 : 0;
+    w.armR.rotation.z = raise ? -1.25 : 0;
+    if (w.glow) w.glow.material.emissiveIntensity = raise ? 1.1 + 0.5 * Math.sin(t * 5) : 0.8;
   }
 
   tickEyes(dt) {
