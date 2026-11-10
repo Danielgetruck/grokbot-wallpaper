@@ -1,7 +1,7 @@
 // One walled room per team, packed into a single hall. Group names are canvas text, drawn so Hebrew stays RTL.
 import * as THREE from 'three';
-import { isFamilyName, isLeadName, isMasterName } from './modteam.js?v=8';
-import { buildFurniture } from './furniture.js?v=8';
+import { isFamilyName, isLeadName, isMasterName } from './modteam.js?v=9';
+import { buildFurniture } from './furniture.js?v=9';
 
 const ACCENT = [0xc084fc, 0x22d3ee, 0xf0abfc, 0xa78bfa, 0x67e8f9, 0xe9d5ff, 0xfbbf24, 0x818cf8];
 
@@ -249,44 +249,175 @@ function neonFloorMaterial() {
       uniform float uTime;
       varying vec2 vUv;
       void main() {
-        vec2 p = vUv * vec2(22.0, 16.0);
-        vec2 g = p + vec2(uTime * 0.35, -uTime * 0.12);
-        vec2 f = abs(fract(g) - 0.5);
-        float grid = smoothstep(0.47, 0.5, max(f.x, f.y));
-        float flow = 0.45 + 0.55 * sin(p.x * 1.7 - uTime * 1.6 + p.y);
-        vec2 cell = floor(vUv * vec2(90.0, 64.0));
-        float n = fract(sin(dot(cell, vec2(12.9898, 78.233))) * 43758.5453);
-        float tw = step(0.965, n) * (0.35 + 0.65 * sin(uTime * 2.4 + n * 40.0));
-        vec3 col = vec3(0.012, 0.008, 0.02);
-        col += vec3(0.45, 0.16, 0.85) * grid * flow;
-        col += vec3(0.75, 0.65, 1.0) * tw * 0.9;
+        vec2 tiles = vUv * vec2(16.0, 12.0);
+        vec2 f = fract(tiles);
+        float grout = smoothstep(0.035, 0.0, min(f.x, f.y)) + smoothstep(0.965, 1.0, max(f.x, f.y));
+        vec3 tile = vec3(0.46, 0.47, 0.50);
+        vec3 col = mix(tile, vec3(0.34, 0.35, 0.38), clamp(grout, 0.0, 1.0));
         gl_FragColor = vec4(col, 1.0);
       }
     `,
   });
 }
 
+function nightViewTexture() {
+  const c = document.createElement('canvas');
+  c.width = 512; c.height = 320;
+  const g = c.getContext('2d');
+  const sky = g.createLinearGradient(0, 0, 0, 320);
+  sky.addColorStop(0, '#070414');
+  sky.addColorStop(0.62, '#1a1244');
+  sky.addColorStop(1, '#0c1428');
+  g.fillStyle = sky;
+  g.fillRect(0, 0, 512, 320);
+  for (let i = 0; i < 90; i++) {
+    const x = Math.random() * 512;
+    const y = Math.random() * 170;
+    g.fillStyle = `rgba(255,255,255,${0.35 + Math.random() * 0.65})`;
+    g.fillRect(x, y, Math.random() > 0.8 ? 2 : 1, Math.random() > 0.8 ? 2 : 1);
+  }
+  for (let i = 0; i < 16; i++) {
+    const bw = 16 + Math.random() * 26;
+    const bh = 28 + Math.random() * 78;
+    const x = i * 32;
+    g.fillStyle = '#10182e';
+    g.fillRect(x, 320 - bh, bw, bh);
+    for (let wy = 320 - bh + 6; wy < 308; wy += 8) {
+      for (let wx = x + 3; wx < x + bw - 3; wx += 6) {
+        if (Math.random() > 0.5) {
+          g.fillStyle = Math.random() > 0.7 ? '#f2d48a' : '#9ecbff';
+          g.fillRect(wx, wy, 2, 2);
+        }
+      }
+    }
+  }
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  t.anisotropy = 8;
+  return t;
+}
+
 function starField(w, d, at) {
-  const n = 80;
+  const n = 70;
   const pos = new Float32Array(n * 3);
   for (let i = 0; i < n; i++) {
-    pos[i * 3] = (Math.random() - 0.5) * w;
-    pos[i * 3 + 1] = 3.2 + Math.random() * 4.5;
-    pos[i * 3 + 2] = (Math.random() - 0.5) * d;
+    pos[i * 3] = (Math.random() - 0.5) * (w + 6);
+    pos[i * 3 + 1] = 2.6 + Math.random() * 5;
+    pos[i * 3 + 2] = -d * 0.55 - Math.random() * 3;
   }
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-  const pts = new THREE.Points(geo, new THREE.PointsMaterial({ color: 0xe9d5ff, size: 0.06, transparent: true, opacity: 0.85, depthWrite: false }));
+  const pts = new THREE.Points(geo, new THREE.PointsMaterial({ color: 0xf4f0ff, size: 0.07, transparent: true, opacity: 0.9, depthWrite: false }));
   pts.position.set(at.x, 0, at.z);
   pts.name = 'hall-stars';
-  pts.userData.stars = true;
   return pts;
+}
+
+let neonStrips = [];
+
+function addShell(root, cx, cz, fw, fd) {
+  const hx = fw / 2, hz = fd / 2;
+  const wallH = 2.55;
+  const cutH = 0.42;
+  const frame = new THREE.MeshStandardMaterial({ color: 0xf4f1ea, roughness: 0.55, metalness: 0.04 });
+  const metal = new THREE.MeshStandardMaterial({ color: 0xc5cad3, roughness: 0.28, metalness: 0.72 });
+  const glass = new THREE.MeshPhysicalMaterial({
+    color: 0xc5d8f0, roughness: 0.08, metalness: 0.05, transparent: true, opacity: 0.38,
+    emissive: 0x8eb4e8, emissiveIntensity: 0.12, side: THREE.DoubleSide, depthWrite: false,
+  });
+  const view = nightViewTexture();
+  const outside = new THREE.MeshBasicMaterial({ map: view, side: THREE.DoubleSide });
+  const neon = new THREE.MeshBasicMaterial({ color: 0xc084fc, transparent: true, opacity: 0.75, blending: THREE.AdditiveBlending, depthWrite: false });
+  neonStrips = [];
+
+  const base = (w, d, x, z) => {
+    const m = new THREE.Mesh(new THREE.BoxGeometry(w, cutH, d), frame);
+    m.position.set(cx + x, cutH / 2, cz + z);
+    m.castShadow = true;
+    const strip = new THREE.Mesh(new THREE.BoxGeometry(w, 0.035, Math.max(d, 0.08)), neon);
+    strip.position.set(cx + x, 0.05, cz + z);
+    neonStrips.push(strip);
+    root.add(m, strip);
+  };
+  base(fw, 0.16, 0, -hz);
+  base(fw, 0.16, 0, hz);
+  base(0.16, fd, -hx, 0);
+  base(0.16, fd, hx, 0);
+
+  const windowWall = (length, tall, x, z, rotY, skipCenter) => {
+    const g = new THREE.Group();
+    g.position.set(cx + x, 0, cz + z);
+    g.rotation.y = rotY;
+    const span = length;
+    const winW = Math.min(2.2, span * 0.22);
+    const gap = span / 3;
+    const panelW = Math.max(0.3, gap - winW - 0.15);
+    for (const px of [-gap / 2, gap / 2]) {
+      const panel = new THREE.Mesh(new THREE.BoxGeometry(panelW, tall - cutH, 0.1), frame);
+      panel.position.set(px, (tall + cutH) / 2, 0);
+      g.add(panel);
+    }
+    for (const ox of [-gap, 0, gap]) {
+      if (skipCenter && ox === 0) continue;
+      if (Math.abs(ox) + winW / 2 > span / 2 - 0.3) continue;
+      const sill = new THREE.Mesh(new THREE.BoxGeometry(winW + 0.16, 0.12, 0.12), metal);
+      sill.position.set(ox, cutH + 0.35, 0);
+      const header = new THREE.Mesh(new THREE.BoxGeometry(winW + 0.16, 0.1, 0.12), metal);
+      header.position.set(ox, tall - 0.15, 0);
+      const left = new THREE.Mesh(new THREE.BoxGeometry(0.06, tall - cutH - 0.5, 0.1), metal);
+      left.position.set(ox - winW / 2, (cutH + tall) / 2, 0);
+      const right = left.clone();
+      right.position.x = ox + winW / 2;
+      const pane = new THREE.Mesh(new THREE.PlaneGeometry(winW, tall - cutH - 0.7), glass);
+      pane.position.set(ox, (cutH + tall) / 2 + 0.05, 0.02);
+      const sky = new THREE.Mesh(new THREE.PlaneGeometry(winW * 0.92, (tall - cutH - 0.7) * 0.92), outside);
+      sky.position.set(ox, (cutH + tall) / 2 + 0.05, -0.04);
+      g.add(sill, header, left, right, pane, sky);
+    }
+    const pierL = new THREE.Mesh(new THREE.BoxGeometry(0.2, tall - cutH, 0.14), frame);
+    pierL.position.set(-span / 2 + 0.1, (tall + cutH) / 2, 0);
+    const pierR = pierL.clone();
+    pierR.position.x = span / 2 - 0.1;
+    g.add(pierL, pierR);
+    root.add(g);
+  };
+  windowWall(fw - 1.2, wallH, 0, -hz, 0, true);
+  windowWall(fd - 1.2, wallH, -hx, 0, Math.PI / 2, false);
+
+  const door = (x, z, rotY, wide) => {
+    const g = new THREE.Group();
+    g.position.set(cx + x, 0, cz + z);
+    g.rotation.y = rotY;
+    const dw = wide ? 1.7 : 1.05;
+    const jamb = new THREE.Mesh(new THREE.BoxGeometry(0.08, 2.15, 0.12), metal);
+    const jl = jamb.clone(); jl.position.set(-dw / 2, 1.1, 0);
+    const jr = jamb.clone(); jr.position.set(dw / 2, 1.1, 0);
+    const head = new THREE.Mesh(new THREE.BoxGeometry(dw + 0.16, 0.1, 0.12), metal);
+    head.position.set(0, 2.15, 0);
+    const leafW = wide ? dw / 2 - 0.06 : dw - 0.1;
+    const leaf = new THREE.Mesh(new THREE.PlaneGeometry(leafW, 1.9), glass);
+    if (wide) {
+      const a = leaf.clone(); a.position.set(-leafW / 2 - 0.02, 1.05, 0.03);
+      const b = leaf.clone(); b.position.set(leafW / 2 + 0.02, 1.05, 0.03);
+      g.add(a, b);
+    } else {
+      leaf.position.set(0, 1.05, 0.03);
+      g.add(leaf);
+    }
+    g.add(jl, jr, head);
+    root.add(g);
+  };
+  door(0, -hz, 0, true);
+  door(-hx, hz * 0.35, Math.PI / 2, false);
+  door(hx, -hz * 0.2, -Math.PI / 2, false);
 }
 
 export function tickFloor(t) {
   if (floorMat) floorMat.uniforms.uTime.value = t;
+  const pulse = 0.45 + 0.35 * (0.5 + 0.5 * Math.sin(t * 1.6));
+  for (const s of neonStrips) if (s.material) s.material.opacity = pulse;
   const stars = floorMat && floorMat.userData.stars;
-  if (stars) stars.material.opacity = 0.45 + 0.4 * (0.5 + 0.5 * Math.sin(t * 2.2));
+  if (stars) stars.material.opacity = 0.55 + 0.35 * (0.5 + 0.5 * Math.sin(t * 2.2));
 }
 
 export function buildHall(parent, layout) {
@@ -308,6 +439,7 @@ export function buildHall(parent, layout) {
   floor.receiveShadow = true;
   floor.name = 'hall-floor';
   root.add(floor);
+  addShell(root, floor.position.x, floor.position.z, fw, fd);
   const stars = starField(fw, fd, floor.position);
   floorMat.userData.stars = stars;
   root.add(stars);
