@@ -13,6 +13,7 @@ import { Actor } from './actor.js';
 import { generateBlob } from './blobgen.js';
 import { Spring, clamp } from './spring.js';
 import { sofiaHour, fontsPromise } from './walls.js';
+import { applyDesks, tick as tickLife, ensureCat, petCat, sendMail, addressedTo } from './life.js';
 
 // Relative to the page (not the site root), so the office also works when it is published in a sub-folder, e.g.
 // https://bodila51.github.io/grokbot-wallpaper/office/ -> ../assets. Locally the page is at `/`, where this is /assets.
@@ -176,19 +177,32 @@ function sync() {
   const maxShare = Math.max(0.0001, ...floorBots.map((b) => b.usage_share || 0));
   const lounge = assignLounge(floorBots);
   const flags = new Array(20).fill(0);
+  const desks = new Array(20).fill(null);
   const delay = Math.max(0, switchedAt + 0.55 - nowSec);
+  const routineFor = routineIndex(state);
   for (const bot of floorBots) {
     let actor = actors.get(bot.id);
     if (!actor) {
-      actor = new Actor(bot, { parent: inst.root, inst, pickables, confetti, cursor, dropDelay: delay });
+      actor = new Actor(bot, { parent: inst.root, inst, pickables, confetti, cursor, dropDelay: delay, now: nowSec });
       actors.set(bot.id, actor);
       attachModel(actor, bot);
     }
+    actor.ctx.now = nowSec;
     const deskIdx = (DESK_ORDER[(bot.desk || 1) - 1] || 1) - 1;
     const desk = assets.spots.desks[deskIdx] || assets.spots.desks[0];
-    if ((bot.effective_status || bot.status) === 'working' && !lounge.has(bot.id)) flags[deskIdx] = 1;
-    actor.update(bot, lounge.get(bot.id) || desk, { maxShare, selectedBot: view.selectedBot });
+    const status = bot.effective_status || bot.status;
+    if (status === 'working' && !lounge.has(bot.id)) flags[deskIdx] = 1;
+    const prevStep = actor.bot?.step;
+    actor.update(bot, lounge.get(bot.id) || desk, { maxShare, selectedBot: view.selectedBot, now: nowSec });
+    desks[deskIdx] = { name: bot.name || '', step: bot.step || '', status, routine: routineFor.get(bot.id) || '' };
+    if (prevStep && bot.step && bot.step !== prevStep) {
+      const other = addressedTo(bot.step, floorBots, bot.id);
+      const to = other && actors.get(other.id);
+      if (to) sendMail(actor.root.position, to.root.position, inst.root);
+    }
   }
+  applyDesks(inst, desks);
+  ensureCat(inst, pickables);
   building.setScreens(flags);
   const floor = floors.find((f) => f.id === building.activeId);
   building.setDisplayData({ floorName: floor ? floor.name : '', bots: floorBots, hour: sofiaHour(state.now) });
@@ -220,6 +234,15 @@ function settle(seconds = 3) {
     for (const a of actors.values()) { a.hostAlpha = building.activeOpen()?.alpha ?? 1; a.tick(step, nowSec); }
     for (const a of retiring) { a.tick(step, nowSec); if (a.dead) retiring.delete(a); }
   }
+}
+
+function routineIndex(state) {
+  const map = new Map();
+  for (const r of state.routines || []) {
+    if (!r || !r.bot || map.has(r.bot)) continue;
+    map.set(r.bot, r.routine || '');
+  }
+  return map;
 }
 
 // Idle bots go to the lounge while seats last; the rest nap at their desks.
@@ -415,7 +438,9 @@ function onUp(e) {
     return;
   }
   setPointer(e);
-  callbacks.onSelectBot?.(pick());
+  const obj = pickObject();
+  if (obj?.userData.cat) { petCat(); return; }
+  callbacks.onSelectBot?.(obj ? obj.userData.actorId : null);
 }
 
 function onWheel(e) {
@@ -434,10 +459,15 @@ function onWheel(e) {
   cam.zoom.to(Math.log(z1));
 }
 
-function pick() {
+function pickObject() {
   raycaster.setFromCamera(pointer, camera);
-  const hit = raycaster.intersectObjects([...pickables], false)[0];
-  return hit ? hit.object.userData.actorId : null;
+  return raycaster.intersectObjects([...pickables], false)[0]?.object || null;
+}
+
+function pick() {
+  const obj = pickObject();
+  if (obj?.userData.cat) return null;
+  return obj ? obj.userData.actorId : null;
 }
 
 function setHover(id) {
@@ -612,7 +642,9 @@ function frame(t) {
   updateCursorGround();
 
   const hostAlpha = building?.activeOpen()?.alpha ?? 1;
-  for (const a of actors.values()) { a.hostAlpha = hostAlpha; a.tick(dt, nowSec); }
+  const open = building?.activeOpen();
+  if (open) tickLife(open, dt, nowSec);
+  for (const a of actors.values()) { a.ctx.now = nowSec; a.hostAlpha = hostAlpha; a.tick(dt, nowSec); }
   for (const a of retiring) {
     a.hostAlpha = a.ctx.inst.alpha;
     a.tick(dt, nowSec);

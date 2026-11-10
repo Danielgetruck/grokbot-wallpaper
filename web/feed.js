@@ -48,6 +48,8 @@ export async function connectFeed({ topic, servers }, onState) {
   const store = new StateStore({ tz, quietIdleMs: QUIET_MS, hasAvatar: (id) => HANDMADE.has(id) });   // no GLB probe: every bot is generated from its look
   const cfg = {};                                        // per bot name: { look, chat_url } -> the store's bots config
   const routines = new Map();                            // bot id -> { name, items }
+  const ticker = [];                                     // chat links and routines, newest first (status lines live on state.feed)
+  const pushTicker = (item) => { ticker.unshift(item); if (ticker.length > 30) ticker.pop(); };
   let check = null;                                      // the latest status check: { ms, names }
   let lines = [], saveTimer = 0;
   const seen = new Set();
@@ -152,7 +154,10 @@ export async function connectFeed({ topic, servers }, onState) {
     if (isMap(rec.chat)) {                               // only app deep links and web pages (the store refuses scripts)
       for (const [name, url] of Object.entries(rec.chat).slice(0, 400)) {
         const chat = safeChatUrl(url);
-        if (chat) (cfg[name] ||= {}).chat_url = chat;
+        if (chat) {
+          (cfg[name] ||= {}).chat_url = chat;
+          pushTicker({ t, name: String(name).slice(0, 80), kind: 'chat', text: 'chat link' });
+        }
       }
       store.setBotsConfig(cfg);
       return true;
@@ -165,6 +170,7 @@ export async function connectFeed({ topic, servers }, onState) {
         next_run: Number.isFinite(Date.parse(r.next_run)) ? new Date(r.next_run).toISOString() : null,
       })).filter((r) => r.routine);
       routines.set(botIdFor(name), { name, items });      // a bot's latest list replaces its previous one
+      if (items[0]) pushTicker({ t, name, kind: 'routine', text: items[0].routine });
       return true;
     }
     if (isMap(rec.check)) {                              // the setup bot asks every bot for a status line: who answers?
@@ -192,6 +198,7 @@ export async function connectFeed({ topic, servers }, onState) {
     s.finished = finished;
     s.routines = [...routines].flatMap(([bot, { name, items }]) => items.map((r) => ({ bot, name, ...r })))
       .sort((a, b) => (a.next_run ? Date.parse(a.next_run) : Infinity) - (b.next_run ? Date.parse(b.next_run) : Infinity));
+    s.ticker = ticker.slice(0, 12);
     s.check = check && Date.now() - check.ms < CHECK_MS ? {
       t: new Date(check.ms).toISOString(),
       bots: check.names.map((name) => {                  // answered = a status line of its own at or after the check

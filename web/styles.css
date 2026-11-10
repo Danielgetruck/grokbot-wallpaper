@@ -95,7 +95,44 @@
 @media (prefers-reduced-motion: reduce) {
   :root.bhq-ready { transition: none; }
   #scene::after { animation: none; opacity: 0.75; }
+  .hq-ticker-track { animation: none; }
 }
+
+.hq-wait {
+  position: fixed; z-index: 24; left: 50%; bottom: 64px; transform: translateX(-50%);
+  width: min(380px, calc(100vw - 2 * var(--gutter)));
+  padding: 10px 12px 8px; border-radius: 16px; pointer-events: auto;
+  background: rgba(22, 16, 34, .88); color: #F4EEFF;
+  border: 1px solid rgba(196, 170, 255, .35);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, .35);
+  font: 600 13px/1.3 var(--font);
+}
+.hq-wait[hidden] { display: none; }
+.hq-wait-head { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.hq-wait-head b { flex: 1; letter-spacing: .04em; text-transform: uppercase; font-size: 11px; color: #FFB020; }
+.hq-wait-tog {
+  border: 1px solid rgba(255, 255, 255, .2); background: transparent; color: #C8BEDC;
+  border-radius: 999px; padding: 3px 8px; font: inherit; font-size: 11px; cursor: pointer;
+}
+.hq-wait-tog[aria-pressed="true"] { background: #F4EEFF; color: #1D1D1F; }
+.hq-wait-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.hq-wait-list button {
+  width: 100%; display: flex; justify-content: space-between; gap: 12px;
+  background: rgba(255, 255, 255, .06); color: inherit; border: 0; border-radius: 10px;
+  padding: 6px 8px; font: inherit; cursor: pointer; text-align: left;
+}
+.hq-wait-list button:hover { background: rgba(255, 159, 10, .2); }
+.hq-wait-more { color: #C8BEDC; font-size: 12px; padding: 2px 8px; }
+.hq-ticker {
+  position: fixed; z-index: 18; left: 50%; bottom: 14px; transform: translateX(-50%);
+  width: min(640px, calc(100vw - 420px)); height: 32px; overflow: hidden; pointer-events: none;
+  color: #E6D9FF; font: 500 12px/32px var(--font);
+  mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent);
+}
+.hq-ticker-track { display: flex; gap: 22px; white-space: nowrap; width: max-content; animation: hq-tick 36s linear infinite; }
+.hq-ticker b { font-weight: 700; color: #fff; margin-right: .35em; }
+@keyframes hq-tick { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+html.wallpaper .hq-wait, html.wallpaper .hq-ticker { display: none; }
 
 /* Solid panels when the OS asks for less transparency. */
 @media (prefers-reduced-transparency: reduce) {

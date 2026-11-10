@@ -3,6 +3,7 @@
 // Without either (static preview) it runs on web/data/demo-state.json with a local simulation.
 import { initScene, renderScene, zoom, focusBot } from './scene/scene.js';
 import { initSound, sfx } from './audio/sound.js';
+import { initHud, renderHud } from './scene/hud.js';
 
 const POLL_MS = 1000;
 const view = { currentFloor: null, selectedBot: null };
@@ -34,6 +35,7 @@ ui.initUI({
   onZoom: (dir) => { zoom(dir); sfx.zoom(dir); },
   onOpenChat: (id, url) => { if (url) location.href = url; },
 });
+if (!WALLPAPER) initHud({ onFocus: (id) => select(id) });
 
 // music and sound effects (not on the wallpaper): the speaker button sits in the top bar's right group
 if (!WALLPAPER) initSound({ slot: document.querySelector('#topbar .bhq-right') });
@@ -96,6 +98,7 @@ function render() {
   if (view.selectedBot && !state.bots[view.selectedBot]) view.selectedBot = null;
   renderScene(state, view);
   ui.renderUI(state, view);
+  if (!WALLPAPER) renderHud(state);
   if (!WALLPAPER) soundStatusChanges();
 }
 
