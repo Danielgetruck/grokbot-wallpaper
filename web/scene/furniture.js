@@ -15,7 +15,8 @@ const mat = {
   mug: new THREE.MeshStandardMaterial({ color: 0xf3f0ea, roughness: 0.28, metalness: 0.04 }),
   paper: new THREE.MeshStandardMaterial({ color: 0xf7f4ee, roughness: 0.8 }),
   lamp: new THREE.MeshStandardMaterial({ color: 0xffe6b0, roughness: 0.3, emissive: 0xffd27a, emissiveIntensity: 0.7 }),
-  panel: new THREE.MeshStandardMaterial({ color: 0x3c4658, roughness: 0.9 }),
+  panel: new THREE.MeshStandardMaterial({ color: 0xd8dde6, roughness: 0.55, metalness: 0.04, transparent: true, opacity: 0.72 }),
+  frost: new THREE.MeshPhysicalMaterial({ color: 0xb7c3d4, roughness: 0.28, metalness: 0.02, transparent: true, opacity: 0.72, depthWrite: false }),
   glow: new THREE.MeshBasicMaterial({ color: 0xe9d5ff, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }),
 };
 
@@ -76,6 +77,10 @@ function workstationTemplate() {
   g.add(part(new THREE.ConeGeometry(0.07, 0.16, 6), 'plant', -0.52, 0.9, 0.95));
   g.add(part(new THREE.CylinderGeometry(0.008, 0.008, 0.22, 6), 'metal', 0.5, 0.86, 0.95));
   g.add(part(new THREE.SphereGeometry(0.045, 8, 6), 'lamp', 0.5, 1.0, 0.95));
+  // waist-height frosted divider so each desk reads as its own spot
+  g.add(part(new THREE.BoxGeometry(0.03, 0.62, 0.78), 'frost', 0.78, 1.08, 0.55, 0, 0, 0, { skipLead: true }));
+  g.add(part(new THREE.BoxGeometry(0.045, 0.04, 0.8), 'metal', 0.78, 1.4, 0.55, 0, 0, 0, { skipLead: true }));
+  g.add(part(new THREE.BoxGeometry(0.04, 0.7, 0.03), 'metal', 0.78, 1.05, 0.16, 0, 0, 0, { skipLead: true }));
 
   // ergonomic mesh chair, origin at the sitter's feet
   g.add(part(new THREE.CylinderGeometry(0.035, 0.04, 0.28, 10), 'metal', 0, 0.28, 0));

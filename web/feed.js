@@ -20,8 +20,8 @@
 // On top of the server's state the office gets state.finished (done lines of the last 24 h, newest first),
 // state.routines (every bot's routines, soonest first) and state.check (the latest status check: who has answered), for
 // the «Finished», «Routines» and «Status check» panels.
-import { StateStore, botIdFor } from './lib/state.js?v=8';
-import { FEED_BASE, feedFromLink } from './lib/feedbase.js?v=8';
+import { StateStore, botIdFor } from './lib/state.js?v=9';
+import { FEED_BASE, feedFromLink } from './lib/feedbase.js?v=9';
 
 const RELAY = 'https://relay.0xcodila.com', NTFY = 'https://ntfy.sh';
 const MAX_LINE = 4096, KEEP = 600, TICK_MS = 30e3, DAY_MS = 24 * 3600e3, PING_MS = 60e3;

@@ -5,20 +5,20 @@ import { CSS2DRenderer } from 'three/addons/renderers/CSS2DRenderer.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
-import { loadOfficeAssets } from './office.js?v=8';
-import { Building } from './building.js?v=8';
-import { createDaylight } from './daylight.js?v=8';
-import { createPost } from './post.js?v=8';
-import { studioCss } from './studio.js?v=8';
-import { Actor } from './actor.js?v=8';
-import { generateBlob } from './blobgen.js?v=8';
-import { Spring, clamp, REDUCED } from './spring.js?v=8';
-import { sofiaHour, fontsPromise } from './walls.js?v=8';
-import { applyDesks, tick as tickLife, ensureCat, petCat, sendMail, addressedTo, cullLabels } from './life.js?v=8';
-import { syncTeam, tickTeam, blockedDesk } from './modteam.js?v=8';
-import { spawnBeam, spawnTrail, tickPackets, setNetwork, tickNetwork } from './packets.js?v=8';
-import { useHall, layoutHall, buildHall, faceSign, tickFloor } from './rooms.js?v=8';
-import { initQuality, getQuality, isSoftGpu, tickPolish, ensureDust, tickDust, syncRug, accentFor } from './polish.js?v=8';
+import { loadOfficeAssets } from './office.js?v=9';
+import { Building } from './building.js?v=9';
+import { createDaylight } from './daylight.js?v=9';
+import { createPost } from './post.js?v=9';
+import { studioCss } from './studio.js?v=9';
+import { Actor } from './actor.js?v=9';
+import { generateBlob } from './blobgen.js?v=9';
+import { Spring, clamp, REDUCED } from './spring.js?v=9';
+import { sofiaHour, fontsPromise } from './walls.js?v=9';
+import { applyDesks, tick as tickLife, ensureCat, petCat, sendMail, addressedTo, cullLabels } from './life.js?v=9';
+import { syncTeam, tickTeam, blockedDesk } from './modteam.js?v=9';
+import { spawnBeam, spawnTrail, tickPackets, setNetwork, tickNetwork } from './packets.js?v=9';
+import { useHall, layoutHall, buildHall, faceSign, tickFloor } from './rooms.js?v=9';
+import { initQuality, getQuality, isSoftGpu, tickPolish, ensureDust, tickDust, syncRug, accentFor } from './polish.js?v=9';
 
 // Relative to the page (not the site root), so the office also works when it is published in a sub-folder, e.g.
 // https://bodila51.github.io/grokbot-wallpaper/office/ -> ../assets. Locally the page is at `/`, where this is /assets.
