@@ -29,17 +29,23 @@ export function installPrivateDesks(root, spots) {
     base: new THREE.BoxGeometry(0.34, 0.016, 0.24),
   };
   const mat = {
-    top: lit(0x2a1848, 0.48, 0.14),
+    top: lit(0x6b4a32, 0.62, 0.04),          // oiled wood
     glow: lit(0x5b21b6, 0.4, 0.18, 0xc4b5fd, 0.9),
-    leg: lit(0x140e1e, 0.34, 0.72),
-    chair: lit(0x4a2c74, 0.74, 0.05),
-    laptop: lit(0x1a1228, 0.4, 0.55),
-    pot: lit(0xe8e0f4, 0.6, 0.05),
-    leaf: lit(0x3d8f62, 0.7, 0.02),
+    leg: lit(0x1a1c22, 0.28, 0.82),          // brushed metal
+    chair: lit(0x3a3158, 0.9, 0.0),          // matte fabric
+    laptop: lit(0x2a2e36, 0.32, 0.7),
+    pot: lit(0xd9d3c8, 0.72, 0.02),
+    leaf: lit(0x2f7a45, 0.78, 0.0),
+    bezel: lit(0x12141a, 0.35, 0.55),
+    keys: lit(0x1c1e24, 0.7, 0.15),
+    mug: lit(0xf4f1ea, 0.28, 0.05),
   };
   geo.pot = new THREE.CylinderGeometry(0.055, 0.04, 0.07, 10);
-  geo.leaf = new THREE.SphereGeometry(0.07, 10, 8);
+  geo.leaf = new THREE.ConeGeometry(0.05, 0.14, 6);
   geo.plate = new THREE.PlaneGeometry(0.46, 0.13);
+  geo.key = new THREE.BoxGeometry(0.28, 0.012, 0.1);
+  geo.mug = new THREE.CylinderGeometry(0.035, 0.032, 0.07, 12);
+  geo.stand = new THREE.CylinderGeometry(0.012, 0.016, 0.08, 8);
   for (let i = 0; i < desks.length; i++) if (desks[i]) addStation(root, desks[i], i, geo, mat);
   addCooler(root, mat.leg);
 }
@@ -67,6 +73,7 @@ function addStation(root, desk, index, geo, mat) {
   for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
     const leg = new THREE.Mesh(geo.leg, mat.leg);
     const lx = sx * hx, lz = sz * hz;
+    leg.name = `desk_leg_${nn}`;
     leg.position.set(top.position.x + rx * lx + fx * lz, 0.355, top.position.z + rz * lx + fz * lz);
     root.add(leg);
   }
@@ -123,10 +130,33 @@ function addStation(root, desk, index, geo, mat) {
   plant.position.set(desk.pos.x + rx * px + fx * (DESK_CENTER + pz), 0.765, desk.pos.z + rz * px + fz * (DESK_CENTER + pz));
   const pot = new THREE.Mesh(geo.pot, mat.pot);
   pot.position.y = 0.035;
-  const leaf = new THREE.Mesh(geo.leaf, mat.leaf);
-  leaf.position.y = 0.12;
-  plant.add(pot, leaf);
+  for (const [lx, lz, ry] of [[0, 0, 0], [0.04, 0.03, 0.6], [-0.035, 0.02, -0.4]]) {
+    const leaf = new THREE.Mesh(geo.leaf, mat.leaf);
+    leaf.position.set(lx, 0.13, lz);
+    leaf.rotation.y = ry;
+    plant.add(leaf);
+  }
+  plant.add(pot);
   root.add(plant);
+
+  // Bezel, stand, keyboard and, on even seats, a mug. Shared geometry, PBR materials.
+  const props = new THREE.Group();
+  props.name = `desk_props_${nn}`;
+  const stand = new THREE.Mesh(geo.stand, mat.leg);
+  stand.position.set(desk.pos.x + fx * (SCREEN_FWD - 0.02), 0.8, desk.pos.z + fz * (SCREEN_FWD - 0.02));
+  const bezel = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.26, 0.02), mat.bezel);
+  bezel.position.set(desk.pos.x + fx * SCREEN_FWD, 0.96, desk.pos.z + fz * SCREEN_FWD);
+  bezel.rotation.y = yaw;
+  const keys = new THREE.Mesh(geo.key, mat.keys);
+  keys.position.set(desk.pos.x + fx * (DESK_CENTER + 0.02), 0.775, desk.pos.z + fz * (DESK_CENTER + 0.02));
+  keys.rotation.y = yaw;
+  props.add(stand, bezel, keys);
+  if (index % 2 === 0) {
+    const mug = new THREE.Mesh(geo.mug, mat.mug);
+    mug.position.set(desk.pos.x + rx * 0.28 + fx * (DESK_CENTER + 0.08), 0.8, desk.pos.z + rz * 0.28 + fz * (DESK_CENTER + 0.08));
+    props.add(mug);
+  }
+  root.add(props);
 
   const plate = new THREE.Mesh(geo.plate, new THREE.MeshBasicMaterial({ color: 0x1a1028, transparent: true, opacity: 0 }));
   plate.name = `nameplate_${nn}`;

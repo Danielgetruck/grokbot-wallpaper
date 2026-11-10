@@ -152,7 +152,7 @@ const LAMP_INTENSITY = 22;                                // the spot lights on 
 const LAMP_POOL = 4.0;                                    // the same lamps on the baked floor (sunpatch.js)
 const LAMP_ANGLE = 0.78;                                  // rad, half the cone of a pendant's shade
 const LAMP_PENUMBRA = 0.75;
-const ROOM = { x: 8.3, z: 6.3, y0: -0.05, y1: 3.0 };      // what the sun's shadow camera must cover, around the floor
+const ROOM = { x: 16.6, z: 12.6, y0: -0.05, y1: 3.0 };    // widened floor: shadow camera covers the whole shell
 const COARSE = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
 const isLit = (m) => m.isMeshStandardMaterial || m.isMeshLambertMaterial || m.isMeshPhongMaterial || m.isMeshToonMaterial;
 const NO_SHADOW = /^(slab|glass)/;                        // the floor slab sits under the floor; glass lets the sun through
@@ -162,7 +162,7 @@ export function createDaylight({ scene, renderer }) {
   const params = new URLSearchParams(location.search);
   // the shadow map is on from the start, so no lit material ever compiles twice
   renderer.shadowMap.enabled = true;
-  renderer.shadowMap.type = THREE.PCFShadowMap;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   const sun = new THREE.DirectionalLight(0xffffff, 1);
   sun.castShadow = true;
   sun.shadow.mapSize.setScalar(COARSE ? 1024 : 2048);
@@ -177,7 +177,7 @@ export function createDaylight({ scene, renderer }) {
   // the desk pendants: soft downward cones, so they leave pools on the desks (the floor's pools: sunpatch.js)
   const lamps = [];
   for (let i = 0; i < LAMP_COUNT; i++) {
-    const l = new THREE.SpotLight(LAMP_COLOR, 0, 0, LAMP_ANGLE, LAMP_PENUMBRA, 2);
+    const l = new THREE.SpotLight(LAMP_COLOR, 0, 7.5, LAMP_ANGLE, LAMP_PENUMBRA, 2);
     l.castShadow = false;
     l.position.set(0, -99, 0);
     scene.add(l, l.target);

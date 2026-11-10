@@ -154,10 +154,7 @@ export async function connectFeed({ topic, servers }, onState) {
     if (isMap(rec.chat)) {                               // only app deep links and web pages (the store refuses scripts)
       for (const [name, url] of Object.entries(rec.chat).slice(0, 400)) {
         const chat = safeChatUrl(url);
-        if (chat) {
-          (cfg[name] ||= {}).chat_url = chat;
-          pushTicker({ t, name: String(name).slice(0, 80), kind: 'chat', text: 'chat link' });
-        }
+        if (chat) (cfg[name] ||= {}).chat_url = chat;
       }
       store.setBotsConfig(cfg);
       return true;

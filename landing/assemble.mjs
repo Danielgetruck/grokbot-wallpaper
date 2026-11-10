@@ -32,7 +32,7 @@ const parts = [
   ['assets/blobs', 'assets/blobs', /\.glb$/],
   ['assets/blobs/thumbs', 'assets/blobs/thumbs', /\.png$/],
   ['assets/blobs/lib', 'assets/blobs/lib', /\.(png|json)$/, { optional: true }],
-  ['assets/office', 'assets/office', /^office\.glb$/],
+  ['assets/office', 'assets/office', /^(office\.glb|studio_small_03_1k\.hdr)$/],
   ['assets/office/night', 'assets/office/night', /\.jpg$/],
   ['assets/brand', 'assets/brand', /\.(png|svg)$/],
   ['assets/earth', 'assets/earth', /^(day|night)\.jpg$/],

@@ -4,6 +4,7 @@ import * as THREE from 'three';
 import { CSS2DRenderer } from 'three/addons/renderers/CSS2DRenderer.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
 import { loadOfficeAssets } from './office.js';
 import { Building } from './building.js';
 import { createDaylight } from './daylight.js';
@@ -11,16 +12,19 @@ import { createPost } from './post.js';
 import { studioCss } from './studio.js';
 import { Actor } from './actor.js';
 import { generateBlob } from './blobgen.js';
-import { Spring, clamp } from './spring.js';
+import { Spring, clamp, REDUCED } from './spring.js';
 import { sofiaHour, fontsPromise } from './walls.js';
-import { applyDesks, tick as tickLife, ensureCat, petCat, sendMail, addressedTo } from './life.js';
+import { applyDesks, tick as tickLife, ensureCat, petCat, sendMail, addressedTo, cullLabels } from './life.js';
+import { syncTeam, tickTeam, blockedDesk } from './modteam.js';
+import { spawnBeam, spawnTrail, tickPackets } from './packets.js';
+import { initQuality, getQuality, tickPolish, ensureDust, tickDust, syncRug, accentFor } from './polish.js';
 
 // Relative to the page (not the site root), so the office also works when it is published in a sub-folder, e.g.
 // https://bodila51.github.io/grokbot-wallpaper/office/ -> ../assets. Locally the page is at `/`, where this is /assets.
 const ASSETS = '../assets';
 const ISO_DIR = new THREE.Vector3(1, 1, 1).normalize();
 const HOME = { x: -0.4, y: -0.3, z: 0.3 };             // camera target relative to the active floor's surface
-const VIEW_SPAN = { w: 35, h: 22 };                 // meters visible at zoom 1 (the stack + the white air around it)
+const VIEW_SPAN = { w: 48, h: 32 };                 // widened floor, framed so the room fills the window
 const PHONE_SPAN_W = 29.5;                          // m across a phone's scene box: the floor + shaft fill ~90 % of the screen
 const ZOOM = { min: 0.75, max: 3, focus: 2 };
 const UI_LEFT = 230, UI_RIGHT = 360;                   // glass panels the building must not hide behind
@@ -104,8 +108,16 @@ export function initScene(el, cbs = {}) {
   const pmrem = new THREE.PMREMGenerator(renderer);
   scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
   scene.environmentIntensity = 0.55;
+  // Poly Haven "studio_small_03" 1k, CC0. Replaces the procedural room once it arrives.
+  new RGBELoader().load(`${ASSETS}/office/studio_small_03_1k.hdr`, (tex) => {
+    tex.mapping = THREE.EquirectangularReflectionMapping;
+    const env = pmrem.fromEquirectangular(tex).texture;
+    scene.environment = env;
+    tex.dispose();
+  }, undefined, () => { /* keep the procedural room if the file is missing */ });
 
   daylight = createDaylight({ scene, renderer });
+  initQuality(renderer);
   document.documentElement.dataset.sky = 'studio';        // white backdrop at every hour: the UI stays on light glass (web/styles.css)
   container.style.background = studioCss();               // the same backdrop as the post pass draws, for the first moments
 
@@ -174,12 +186,28 @@ function sync() {
 
   for (const [id, actor] of actors) if (!ids.has(id)) { actor.retire(); retiring.add(actor); actors.delete(id); }
 
+  const floor = floors.find((f) => f.id === building.activeId);
+  const team = syncTeam(inst, floor, floorBots, assets.spots.desks);
+  syncRug(inst, accentFor(floor?.name || floor?.id, !!team));
   const maxShare = Math.max(0.0001, ...floorBots.map((b) => b.usage_share || 0));
   const lounge = assignLounge(floorBots);
   const flags = new Array(20).fill(0);
   const desks = new Array(20).fill(null);
   const delay = Math.max(0, switchedAt + 0.55 - nowSec);
   const routineFor = routineIndex(state);
+  const used = new Set();
+  const claim = (prefer) => {
+    if (prefer >= 0 && !used.has(prefer) && !(team && blockedDesk(prefer, assets.spots.desks, team)) && assets.spots.desks[prefer]) {
+      used.add(prefer);
+      return prefer;
+    }
+    for (let i = 0; i < 20; i++) {
+      if (used.has(i) || (team && blockedDesk(i, assets.spots.desks, team)) || !assets.spots.desks[i]) continue;
+      used.add(i);
+      return i;
+    }
+    return 0;
+  };
   for (const bot of floorBots) {
     let actor = actors.get(bot.id);
     if (!actor) {
@@ -188,23 +216,31 @@ function sync() {
       attachModel(actor, bot);
     }
     actor.ctx.now = nowSec;
-    const deskIdx = (DESK_ORDER[(bot.desk || 1) - 1] || 1) - 1;
-    const desk = assets.spots.desks[deskIdx] || assets.spots.desks[0];
+    const family = team && team.has(bot.id);
+    const prefer = (DESK_ORDER[(bot.desk || 1) - 1] || 1) - 1;
+    const deskIdx = family ? -1 : claim(prefer);
+    const spot = family ? team.get(bot.id) : (assets.spots.desks[deskIdx] || assets.spots.desks[0]);
     const status = bot.effective_status || bot.status;
-    if (status === 'working' && !lounge.has(bot.id)) flags[deskIdx] = 1;
+    if (status === 'working' && !lounge.has(bot.id) && deskIdx >= 0) flags[deskIdx] = 1;
     const prevStep = actor.bot?.step;
-    actor.update(bot, lounge.get(bot.id) || desk, { maxShare, selectedBot: view.selectedBot, now: nowSec });
-    desks[deskIdx] = { name: bot.name || '', step: bot.step || '', status, routine: routineFor.get(bot.id) || '' };
+    const prevStatus = actor.status;
+    actor.update(bot, lounge.get(bot.id) || spot, { maxShare, selectedBot: view.selectedBot, now: nowSec });
+    if (deskIdx >= 0) desks[deskIdx] = { name: bot.name || '', step: bot.step || '', status, routine: routineFor.get(bot.id) || '' };
+    if (prevStatus && prevStatus !== status) spawnTrail(inst.root, actor.root.position, status === 'waiting_user' ? 0xff9f0a : 0xffd27a);
     if (prevStep && bot.step && bot.step !== prevStep) {
       const other = addressedTo(bot.step, floorBots, bot.id);
       const to = other && actors.get(other.id);
-      if (to) sendMail(actor.root.position, to.root.position, inst.root);
+      if (to) {
+        sendMail(actor.root.position, to.root.position, inst.root);
+        spawnTrail(inst.root, actor.root.position, 0xc4b5fd);
+      }
     }
   }
   applyDesks(inst, desks);
+  const talked = tickTeam(inst, floorBots, 0, nowSec);
+  if (talked) actors.get(talked.speaker.id)?.speak(talked.step, 1.6, nowSec);
   ensureCat(inst, pickables);
   building.setScreens(flags);
-  const floor = floors.find((f) => f.id === building.activeId);
   building.setDisplayData({ floorName: floor ? floor.name : '', bots: floorBots, hour: sofiaHour(state.now) });
   if (hoveredId && !actors.has(hoveredId)) hoveredId = null;
   if (!settledOnce) {
@@ -338,11 +374,16 @@ function stepCamera(dt) {
   if (Math.abs(z - camera.zoom) > 1e-5) { camera.zoom = z; camera.updateProjectionMatrix(); }
   tmp.set(cam.x.x, cam.y.x, cam.z.x);
   camera.position.copy(tmp).addScaledVector(ISO_DIR, 80);
+  if (!REDUCED && !drag && getQuality() === 'high') {
+    const wobble = Math.sin(nowSec * 0.28) * 0.38;
+    camera.position.x += wobble;
+    camera.position.z -= wobble * 0.6;
+  }
 }
 
 function clampTarget() {
-  cam.x.target = clamp(cam.x.target, -9.5, 9.5);
-  cam.z.target = clamp(cam.z.target, -7.5, 7.5);
+  cam.x.target = clamp(cam.x.target, -16, 16);
+  cam.z.target = clamp(cam.z.target, -14, 14);
   cam.zoom.target = clamp(cam.zoom.target, Math.log(ZOOM.min), Math.log(ZOOM.max));
 }
 
@@ -643,7 +684,36 @@ function frame(t) {
 
   const hostAlpha = building?.activeOpen()?.alpha ?? 1;
   const open = building?.activeOpen();
-  if (open) tickLife(open, dt, nowSec);
+  if (open) {
+    tickLife(open, dt, nowSec);
+    const talked = lastState ? tickTeam(open, Object.values(lastState.bots).filter((b) => b.floor === building.activeId), dt, nowSec) : null;
+    if (talked) actors.get(talked.speaker.id)?.speak(talked.step, 1.6, nowSec);
+    if (!REDUCED && getQuality() === 'high' && lastState) {
+      for (const b of Object.values(lastState.bots)) {
+        if (b.floor !== building.activeId || (b.effective_status || b.status) !== 'working') continue;
+        if (Math.random() < dt * 0.45) {
+          const a = actors.get(b.id);
+          if (a) spawnBeam(open.root, a.root.position);
+        }
+      }
+    }
+    tickPackets(dt, REDUCED || getQuality() === 'low');
+    tickPolish(open.obj, daylight?.state?.night || 0);
+    cullLabels(camera, open);
+    ensureDust(open.root);
+    tickDust(dt);
+  }
+  const hi = getQuality() === 'high' && !REDUCED;
+  if (post?.setBloom) post.setBloom(hi);
+  if (post?.setAo) post.setAo(hi);
+  if (post?.setDof) {
+    const sel = lastView.selectedBot && actors.get(lastView.selectedBot);
+    if (hi && sel) {
+      sel.root.getWorldPosition(tmp);
+      tmp.applyMatrix4(camera.matrixWorldInverse);
+      post.setDof(Math.max(0.5, -tmp.z));
+    } else post.setDof(0);
+  }
   for (const a of actors.values()) { a.ctx.now = nowSec; a.hostAlpha = hostAlpha; a.tick(dt, nowSec); }
   for (const a of retiring) {
     a.hostAlpha = a.ctx.inst.alpha;

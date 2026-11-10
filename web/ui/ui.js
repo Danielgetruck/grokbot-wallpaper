@@ -1482,6 +1482,7 @@ function renderFeed(state) {
   const keys = new Array(items.length);
   for (let i = items.length - 1; i >= 0; i--) {
     const e = items[i];
+    if (!e) continue;
     const base = e.t + '|' + e.bot + '|' + e.status + '|' + e.step;
     const n = seenBase.get(base) || 0;
     seenBase.set(base, n + 1);

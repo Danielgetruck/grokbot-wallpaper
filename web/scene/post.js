@@ -6,6 +6,9 @@ import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { GTAOPass } from 'three/addons/postprocessing/GTAOPass.js';
+import { BokehPass } from 'three/addons/postprocessing/BokehPass.js';
 import { StudioPass } from './studio.js';
 
 const TiltShiftShader = {
@@ -55,6 +58,11 @@ export function createPost(renderer, scene, camera) {
   composer.writeBuffer = composer.renderTarget2;
   composer.readBuffer = composer.renderTarget1;
   composer.addPass(new RenderPass(scene, camera));
+  const gtao = new GTAOPass(scene, camera, size.x, size.y);
+  gtao.output = GTAOPass.OUTPUT.Default;
+  gtao.blendIntensity = 0.42;
+  gtao.enabled = false;
+  composer.addPass(gtao);
   const h = new ShaderPass(TiltShiftShader);
   const v = new ShaderPass(TiltShiftShader);      // ShaderPass clones the uniforms, so each pass owns its own
   h.enabled = v.enabled = tiltShiftEnabled();
@@ -63,6 +71,16 @@ export function createPost(renderer, scene, camera) {
   composer.addPass(new OutputPass());
   const studio = new StudioPass(scene, camera);
   composer.addPass(studio);
+  // After the studio backdrop, so only bright lamps and neon bloom. Off on the low quality setting.
+  const bokeh = new BokehPass(scene, camera, { focus: 20, aperture: 0.00012, maxblur: 0.006 });
+  bokeh.materialBokeh.defines.PERSPECTIVE_CAMERA = 0;
+  bokeh.materialBokeh.needsUpdate = true;
+  bokeh.enabled = false;
+  composer.addPass(bokeh);
+  // High threshold so the purple backdrop stays quiet and only lamps, screens and neon bloom.
+  const bloom = new UnrealBloomPass(new THREE.Vector2(size.x, size.y), 0.28, 0.35, 0.92);
+  bloom.enabled = false;
+  composer.addPass(bloom);
 
   const api = {
     composer,
@@ -74,6 +92,13 @@ export function createPost(renderer, scene, camera) {
       v.uniforms.dir.value.set(0, 1 / pxH);
       this.base = 1.05 * renderer.getPixelRatio();
       h.uniforms.strength.value = v.uniforms.strength.value = this.base;
+    },
+    setBloom(on) { bloom.enabled = !!on; },
+    setAo(on) { gtao.enabled = !!on; },
+    setDof(distance) {
+      const on = distance > 0;
+      bokeh.enabled = on;
+      if (on) bokeh.uniforms.focus.value = distance;
     },
     render(focusV, dt, intensity = 1) {
       h.uniforms.focus.value = v.uniforms.focus.value = focusV;
