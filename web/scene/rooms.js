@@ -1,7 +1,7 @@
 // One walled room per team, packed into a single hall. Group names are canvas text, drawn so Hebrew stays RTL.
 import * as THREE from 'three';
-import { isFamilyName, isLeadName } from './modteam.js';
-import { buildFurniture } from './furniture.js';
+import { isFamilyName, isLeadName } from './modteam.js?v=7';
+import { buildFurniture } from './furniture.js?v=7';
 
 const ACCENT = [0xc084fc, 0x22d3ee, 0xf0abfc, 0xa78bfa, 0x67e8f9, 0xe9d5ff, 0xfbbf24, 0x818cf8];
 
@@ -11,17 +11,20 @@ export function useHall(floors) {
 
 function accent(i, mod) { return mod ? 0xe9d5ff : ACCENT[i % ACCENT.length]; }
 
+const PITCH_X = 2.7;
+const PITCH_Z = 2.55;
+
 function roomSize(n, mod) {
   const count = Math.max(n, 1);
-  const cols = count <= 2 ? 2 : count <= 6 ? 3 : 4;
+  const cols = count <= 4 ? 2 : count <= 9 ? 3 : 4;
   const rows = Math.ceil(count / cols);
-  let w = cols * 2.2 + 2.4;
-  let d = rows * 2.05 + 2.3;
+  let w = cols * PITCH_X + 1.6;
+  let d = rows * PITCH_Z + 1.6;
   if (mod) {
-    const radius = 2.15 + Math.max(0, count - 1) * 0.16;
-    const side = Math.max(8.6, radius * 2 + 3.4);
-    w = Math.max(w, side);
-    d = Math.max(d, side * 0.92);
+    const radius = 2.2 + Math.max(0, count - 1) * 0.22;
+    const side = Math.max(w, radius * 2 + 3.2);
+    w = side;
+    d = Math.max(d, side * 0.9);
   }
   return { w, d, cols, rows };
 }
@@ -44,14 +47,13 @@ function seatsIn(room, bots) {
     return map;
   }
   const { cols } = roomSize(bots.length, false);
-  const pitchX = 2.15, pitchZ = 2.0;
-  const ox = (cols - 1) * pitchX / 2;
-  const rows = Math.ceil(bots.length / cols);
-  const oz = (rows - 1) * pitchZ / 2;
+  const ox = (cols - 1) * PITCH_X / 2;
+  const rows = Math.ceil(Math.max(bots.length, 1) / cols);
+  const oz = (rows - 1) * PITCH_Z / 2;
   bots.forEach((b, i) => {
     const c = i % cols, r = Math.floor(i / cols);
     map.set(b.id, {
-      pos: new THREE.Vector3(cx - ox + c * pitchX, 0, cz - oz + r * pitchZ),
+      pos: new THREE.Vector3(cx - ox + c * PITCH_X, 0, cz - oz + r * PITCH_Z),
       yaw: 0.15,
     });
   });
@@ -66,7 +68,7 @@ export function layoutHall(floors, bots) {
     return { ...f, members, mod, ...size, color: accent(i, mod) };
   });
   const cols = groups.length > 3 ? Math.ceil(groups.length / 2) : Math.max(1, groups.length);
-  const gap = 2.7;
+  const gap = 2.2;
   const rowH = [];
   for (let r = 0; r < Math.ceil(groups.length / cols); r++) {
     let h = 0;
@@ -284,45 +286,47 @@ export function buildHall(parent, layout) {
   for (const room of layout.rooms) {
     const g = new THREE.Group();
     g.position.set(room.x, 0, room.z);
-    const glass = new THREE.MeshPhysicalMaterial({
-      color: room.color, transparent: true, opacity: 0.22, roughness: 0.08, metalness: 0.04,
-      side: THREE.DoubleSide, depthWrite: false,
-    });
-    const neon = new THREE.MeshBasicMaterial({ color: room.color, transparent: true, opacity: 0.95, blending: THREE.AdditiveBlending, depthWrite: false });
-    const hw = room.w / 2, hd = room.d / 2, door = 1.7;
-    addWall(g, 0, -hd, room.w, 0.08, glass, neon);
-    addWall(g, -hw, 0, 0.08, room.d, glass, neon);
-    addWall(g, hw, 0, 0.08, room.d, glass, neon);
-    const side = Math.max(0.3, (room.w - door) / 2);
-    addWall(g, -hw + side / 2, hd, side, 0.08, glass, neon);
-    addWall(g, hw - side / 2, hd, side, 0.08, glass, neon);
-    const arch = new THREE.Mesh(new THREE.BoxGeometry(door + 0.15, 0.07, 0.12), neon);
-    arch.position.set(0, 1.12, hd);
-    g.add(arch);
+    const neon = new THREE.MeshBasicMaterial({ color: room.color, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false });
+    const hw = room.w / 2, hd = room.d / 2;
     const carpet = new THREE.Mesh(
-      new THREE.PlaneGeometry(room.w - 0.3, room.d - 0.3),
+      new THREE.PlaneGeometry(room.w, room.d),
       carpetMaterial(room.color),
     );
     carpet.rotation.x = -Math.PI / 2;
     carpet.position.y = 0.02;
     carpet.receiveShadow = true;
     g.add(carpet);
+    for (const [w, d, x, z] of [
+      [room.w, 0.06, 0, -hd], [room.w, 0.06, 0, hd], [0.06, room.d, -hw, 0], [0.06, room.d, hw, 0],
+    ]) {
+      const line = new THREE.Mesh(new THREE.BoxGeometry(w, 0.02, d), neon);
+      line.position.set(x, 0.035, z);
+      g.add(line);
+    }
+    const planterMat = new THREE.MeshStandardMaterial({ color: 0x3a2a22, roughness: 0.8 });
+    const leafMat = new THREE.MeshStandardMaterial({ color: 0x2f7a45, roughness: 0.7 });
+    for (const x of [-hw + 0.4, hw - 0.4]) {
+      const box = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.28, 0.28), planterMat);
+      box.position.set(x, 0.16, hd - 0.2);
+      const leaf = new THREE.Mesh(new THREE.ConeGeometry(0.22, 0.35, 6), leafMat);
+      leaf.position.set(x, 0.42, hd - 0.2);
+      g.add(box, leaf);
+    }
     addCeiling(g, room);
-
-    const sw = Math.min(room.w * 0.46, 3.6);
-    const sh = 0.52;
+    const sw = Math.min(room.w * 0.55, 3.2);
+    const sh = 0.48;
     const map = signTexture(room.name, room.color);
-    const plate = new THREE.Mesh(new THREE.PlaneGeometry(sw, sh), new THREE.MeshBasicMaterial({
-      color: 0x14081c, side: THREE.FrontSide,
-    }));
-    const sign = new THREE.Mesh(new THREE.PlaneGeometry(sw * 0.98, sh * 0.9), new THREE.MeshBasicMaterial({
+    const plate = new THREE.Mesh(new THREE.PlaneGeometry(sw, sh), new THREE.MeshBasicMaterial({ color: 0x14081c, side: THREE.FrontSide }));
+    const sign = new THREE.Mesh(new THREE.PlaneGeometry(sw * 0.96, sh * 0.86), new THREE.MeshBasicMaterial({
       map, side: THREE.FrontSide, toneMapped: false,
     }));
-    plate.position.set(0, 1.85, hd + 0.15);
-    sign.position.set(0, 1.85, hd + 0.2);
+    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 1.15, 8), new THREE.MeshStandardMaterial({ color: 0x2a2433, metalness: 0.4, roughness: 0.4 }));
+    pole.position.set(0, 0.7, -hd + 0.35);
+    plate.position.set(0, 1.45, -hd + 0.35);
+    sign.position.set(0, 1.45, -hd + 0.4);
     plate.userData.billboard = sign.userData.billboard = true;
     plate.userData.roomId = sign.userData.roomId = room.id;
-    g.add(plate, sign);
+    g.add(pole, plate, sign);
     const pad = new THREE.Mesh(new THREE.PlaneGeometry(room.w - 0.4, room.d - 0.4), new THREE.MeshBasicMaterial({ visible: false }));
     pad.rotation.x = -Math.PI / 2;
     pad.position.y = 0.04;

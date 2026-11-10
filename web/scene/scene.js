@@ -5,20 +5,20 @@ import { CSS2DRenderer } from 'three/addons/renderers/CSS2DRenderer.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
-import { loadOfficeAssets } from './office.js';
-import { Building } from './building.js';
-import { createDaylight } from './daylight.js';
-import { createPost } from './post.js';
-import { studioCss } from './studio.js';
-import { Actor } from './actor.js';
-import { generateBlob } from './blobgen.js';
-import { Spring, clamp, REDUCED } from './spring.js';
-import { sofiaHour, fontsPromise } from './walls.js';
-import { applyDesks, tick as tickLife, ensureCat, petCat, sendMail, addressedTo, cullLabels } from './life.js';
-import { syncTeam, tickTeam, blockedDesk } from './modteam.js';
-import { spawnBeam, spawnTrail, tickPackets, setNetwork, tickNetwork } from './packets.js';
-import { useHall, layoutHall, buildHall, faceSign } from './rooms.js';
-import { initQuality, getQuality, isSoftGpu, tickPolish, ensureDust, tickDust, syncRug, accentFor } from './polish.js';
+import { loadOfficeAssets } from './office.js?v=7';
+import { Building } from './building.js?v=7';
+import { createDaylight } from './daylight.js?v=7';
+import { createPost } from './post.js?v=7';
+import { studioCss } from './studio.js?v=7';
+import { Actor } from './actor.js?v=7';
+import { generateBlob } from './blobgen.js?v=7';
+import { Spring, clamp, REDUCED } from './spring.js?v=7';
+import { sofiaHour, fontsPromise } from './walls.js?v=7';
+import { applyDesks, tick as tickLife, ensureCat, petCat, sendMail, addressedTo, cullLabels } from './life.js?v=7';
+import { syncTeam, tickTeam, blockedDesk } from './modteam.js?v=7';
+import { spawnBeam, spawnTrail, tickPackets, setNetwork, tickNetwork } from './packets.js?v=7';
+import { useHall, layoutHall, buildHall, faceSign } from './rooms.js?v=7';
+import { initQuality, getQuality, isSoftGpu, tickPolish, ensureDust, tickDust, syncRug, accentFor } from './polish.js?v=7';
 
 // Relative to the page (not the site root), so the office also works when it is published in a sub-folder, e.g.
 // https://bodila51.github.io/grokbot-wallpaper/office/ -> ../assets. Locally the page is at `/`, where this is /assets.
@@ -248,7 +248,6 @@ function sync() {
     }
     if (hall) actor.setWorker(bot);
     actor.ctx.now = nowSec;
-    actor.ctx.names = hall && isPortraitPhone();
     const family = !hall && team && team.has(bot.id);
     const seated = hall && hallPlan?.spots.get(bot.id);
     const prefer = (DESK_ORDER[(bot.desk || 1) - 1] || 1) - 1;
@@ -388,9 +387,9 @@ function pixelRatio() {
 }
 
 function isPortraitPhone() {
-  if (!container) return false;
-  const w = container.clientWidth, h = container.clientHeight;
-  return w > 0 && w <= 760 && h > w;
+  const w = window.innerWidth || container?.clientWidth || 0;
+  const h = window.innerHeight || container?.clientHeight || 0;
+  return w > 0 && h > 0 && w <= 900 && h >= w;
 }
 
 function distanceFor(width, depth) {
@@ -442,7 +441,7 @@ export function zoom(dir) {
 function focusRoom(id, snap = false) {
   const room = hallLayout?.rooms?.find((r) => r.id === id);
   if (!room || !building) return;
-  const dist = isPortraitPhone() ? 13.5 : distanceFor(room.w + 1.4, room.d + 1.4);
+  const dist = isPortraitPhone() ? 10.2 : distanceFor(room.w + 1.4, room.d + 1.4);
   aim(room.x, 0.9, room.z, dist, snap);
 }
 
@@ -817,5 +816,38 @@ function frame(t) {
     focusV.set(0, (building ? building.cabinY.x : 0) + 0.7, 0).project(camera);
     post.render(clamp(focusV.y * 0.5 + 0.5, 0, 1), dt, 0);
   } else renderer.render(scene, camera);
+  updateLabels();
   if (!WALLPAPER || WALLPAPER_TAGS) labels.render(scene, camera);
+}
+
+const labelPoint = new THREE.Vector3();
+function updateLabels() {
+  const close = cam.dist.x < (isPortraitPhone() ? 14 : 16);
+  const ranked = [];
+  for (const a of actors.values()) {
+    const attn = a.status === 'waiting_user' || a.status === 'error' || a.status === 'stuck';
+    a.ctx.labelMode = (a.selected || a.hovered || attn) ? 'name' : close ? 'name' : 'dot';
+    a.renderTag();
+    const on = a.tagEl.dataset.mode !== 'off' && a.hostAlpha > 0.5 && !a.retiring;
+    a.tag.visible = on;
+    if (!on) continue;
+    labelPoint.copy(a.root.position);
+    labelPoint.y += 1.45;
+    labelPoint.project(camera);
+    const onScreen = labelPoint.z > 0 && labelPoint.z < 1 && Math.abs(labelPoint.x) < 1.05 && Math.abs(labelPoint.y) < 1.05;
+    if (!onScreen) { a.tag.visible = false; a.tagEl.style.opacity = '0'; continue; }
+    ranked.push({
+      a, x: labelPoint.x, y: labelPoint.y,
+      pri: a.selected ? 4 : a.hovered ? 3 : attn ? 2 : 1,
+      named: a.tagEl.dataset.mode !== 'dot',
+    });
+  }
+  ranked.sort((p, q) => q.pri - p.pri);
+  const kept = [];
+  for (const p of ranked) {
+    const limit = p.named ? 0.22 : 0.05;
+    const hit = kept.some((k) => Math.hypot(k.x - p.x, k.y - p.y) < limit);
+    p.a.tagEl.style.opacity = hit ? '0' : '1';
+    if (!hit) kept.push(p);
+  }
 }

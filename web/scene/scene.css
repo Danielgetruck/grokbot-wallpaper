@@ -41,14 +41,16 @@
 .hqt[data-mode="off"] { display: none; }
 
 .hqt-pill {
-  display: flex; align-items: center; gap: 7px; max-width: 250px; height: 28px; padding: 0 12px 0 10px;
+  display: flex; align-items: center; gap: 4px; max-width: 92px; height: 18px; padding: 0 6px 0 5px;
   border-radius: 999px; box-sizing: border-box;
-  background: rgba(255, 255, 255, .8);
-  -webkit-backdrop-filter: blur(16px) saturate(160%); backdrop-filter: blur(16px) saturate(160%);
-  border: 1px solid rgba(255, 255, 255, .85);
-  box-shadow: 0 1px 1px rgba(0, 0, 0, .04), 0 6px 18px rgba(0, 0, 0, .10);
-  color: #1D1D1F; font-size: 12px; font-weight: 600; line-height: 1; white-space: nowrap; letter-spacing: -.003em;
+  background: rgba(16, 10, 24, .82);
+  border: 1px solid rgba(255, 255, 255, .18);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, .28);
+  color: #F6F0FF; font-size: 10px; font-weight: 650; line-height: 1; white-space: nowrap;
 }
+.hqt[data-mode="dot"] .hqt-pill { height: auto; max-width: none; padding: 0; background: none; border: 0; box-shadow: none; }
+.hqt[data-mode="dot"] .hqt-text, .hqt[data-mode="dot"] .hqt-stem { display: none; }
+.hqt[data-mode="dot"] .hqt-dot { width: 8px; height: 8px; box-shadow: 0 0 0 2px rgba(0, 0, 0, .35); }
 .hqt-text { overflow: hidden; text-overflow: ellipsis; }
 .hqt-dot { flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--c, #A1A1A6); }
 .hqt-stem { width: 1px; height: 14px; background: rgba(0, 0, 0, .18); }
