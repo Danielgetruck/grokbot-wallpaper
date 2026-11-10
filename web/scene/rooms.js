@@ -1,7 +1,7 @@
 // One walled room per team, packed into a single hall. Group names are canvas text, drawn so Hebrew stays RTL.
 import * as THREE from 'three';
-import { isFamilyName, isLeadName } from './modteam.js?v=7';
-import { buildFurniture } from './furniture.js?v=7';
+import { isFamilyName, isLeadName, isMasterName } from './modteam.js?v=8';
+import { buildFurniture } from './furniture.js?v=8';
 
 const ACCENT = [0xc084fc, 0x22d3ee, 0xf0abfc, 0xa78bfa, 0x67e8f9, 0xe9d5ff, 0xfbbf24, 0x818cf8];
 
@@ -60,86 +60,72 @@ function seatsIn(room, bots) {
   return map;
 }
 
-export function layoutHall(floors, bots) {
-  const groups = floors.map((f, i) => {
-    const members = bots.filter((b) => b.floor === f.id);
-    const mod = isFamilyName(f.name) || members.some((b) => isLeadName(b.name)) || String(f.name || '').includes('MoD');
-    const size = roomSize(members.length, mod);
-    return { ...f, members, mod, ...size, color: accent(i, mod) };
-  });
-  const cols = groups.length > 3 ? Math.ceil(groups.length / 2) : Math.max(1, groups.length);
-  const gap = 2.2;
-  const rowH = [];
-  for (let r = 0; r < Math.ceil(groups.length / cols); r++) {
-    let h = 0;
-    for (let c = 0; c < cols; c++) h = Math.max(h, groups[r * cols + c]?.d || 0);
-    rowH.push(h);
-  }
-  const rowW = [];
-  for (let r = 0; r < rowH.length; r++) {
-    let w = 0;
-    for (let c = 0; c < cols; c++) {
-      const g = groups[r * cols + c];
-      if (!g) continue;
-      w += g.w + (c ? gap : 0);
-    }
-    rowW.push(w);
-  }
-  const totalD = rowH.reduce((s, h) => s + h, 0) + gap * Math.max(0, rowH.length - 1);
-  const rowZ = [];
-  let zCursor = -totalD / 2;
-  for (let r = 0; r < rowH.length; r++) {
-    rowZ[r] = zCursor + rowH[r] / 2;
-    zCursor += rowH[r] + gap;
-  }
-  const lounge = rowH.length > 1
-    ? { x: 0, z: -totalD / 2 + rowH[0] + gap / 2 }
-    : { x: 0, z: rowZ[0] || 0 };
-  const spots = new Map();
-  const links = [];
-  groups.forEach((g, i) => {
-    const r = Math.floor(i / cols);
-    const c = i % cols;
-    let x0 = -rowW[r] / 2;
-    for (let k = 0; k < c; k++) x0 += groups[r * cols + k].w + gap;
-    g.x = x0 + g.w / 2;
-    g.z = rowZ[r];
-    g.door = { x: g.x, z: g.z + g.d / 2 };
-    const local = seatsIn(g, g.members);
-    for (const [id, s] of local) spots.set(id, s);
-    const ids = [...local.keys()];
-    const nLinks = ids.length > 2 ? ids.length : ids.length === 2 ? 1 : 0;
-    for (let k = 0; k < nLinks; k++) {
-      links.push({ a: local.get(ids[k]).pos, b: local.get(ids[(k + 1) % ids.length]).pos, wide: false, lift: 0.85 });
-    }
-    const lead = g.members.find((b) => isLeadName(b.name));
-    if (lead && local.get(lead.id)) {
-      for (const m of g.members) {
-        if (m === lead || !isFamilyName(m.name)) continue;
-        const s = local.get(m.id);
-        if (s) links.push({ a: local.get(lead.id).pos, b: s.pos, wide: true, lift: 1.15 });
-      }
-    }
-  });
-  const mod = groups.find((g) => g.mod);
-  const hub = mod?.members.find((b) => isLeadName(b.name)) || mod?.members[0];
-  if (hub && spots.get(hub.id)) {
-    for (const g of groups) {
-      if (g === mod || !g.members[0]) continue;
-      const other = spots.get(g.members[0].id);
-      if (other) links.push({ a: spots.get(hub.id).pos, b: other.pos, wide: true, lift: 0.9, via: [mod.door, g.door] });
-    }
-  }
-  let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
-  for (const g of groups) {
-    minX = Math.min(minX, g.x - g.w / 2);
-    maxX = Math.max(maxX, g.x + g.w / 2);
-    minZ = Math.min(minZ, g.z - g.d / 2);
-    maxZ = Math.max(maxZ, g.z + g.d / 2);
-  }
-  if (!groups.length) { minX = -6; maxX = 6; minZ = -5; maxZ = 5; }
-  return { rooms: groups, spots, links, lounge, bounds: { minX, maxX, minZ, maxZ } };
+function faceOrigin(x, z) {
+  return Math.atan2(-x, -z);
 }
+
+function putGrid(spots, people, x0, z0, cols, xStep, zStep) {
+  people.forEach((b, i) => {
+    const c = i % cols;
+    const r = Math.floor(i / cols);
+    const x = x0 + c * xStep;
+    const z = z0 + r * zStep;
+    spots.set(b.id, { pos: new THREE.Vector3(x, 0, z), yaw: faceOrigin(x, z), lead: isLeadName(b.name) });
+  });
+}
+
+/** One floor. Names decide the seats; feed groups are ignored. */
+export function layoutHall(_floors, bots) {
+  const all = (bots || []).filter((b) => b && b.id);
+  const master = all.find((b) => isMasterName(b.name)) || null;
+  const modLead = all.find((b) => isLeadName(b.name)) || null;
+  const modFamily = all.filter((b) => b !== master && b !== modLead && isFamilyName(b.name));
+  const rest = all.filter((b) => b !== master && b !== modLead && !isFamilyName(b.name));
+  const spots = new Map();
+  const hub = new THREE.Vector3(0, 0, 0);
+  if (master) spots.set(master.id, { pos: hub.clone(), yaw: 0.35, lead: true, hub: true });
+
+  const modCols = Math.min(4, Math.max(2, Math.ceil(Math.sqrt(Math.max(modFamily.length, 1)))));
+  const modRows = Math.max(1, Math.ceil(modFamily.length / modCols));
+  putGrid(spots, modFamily, -6.2 - (modCols - 1) * 2.45, -((modRows - 1) * 2.35) / 2, modCols, 2.45, 2.35);
+  if (modLead) {
+    const lx = -4.2;
+    spots.set(modLead.id, { pos: new THREE.Vector3(lx, 0, 0), yaw: faceOrigin(lx, 0), lead: true });
+  }
+
+  const sides = [[], [], []];
+  rest.forEach((b, i) => sides[i % 3].push(b));
+  const sideCols = 4;
+  sides.forEach((people, s) => {
+    if (!people.length) return;
+    const rows = Math.ceil(people.length / sideCols);
+    if (s === 0) putGrid(spots, people, 4.4, -((rows - 1) * 2.35) / 2, sideCols, 2.45, 2.35);
+    else if (s === 1) putGrid(spots, people, -((Math.min(sideCols, people.length) - 1) * 2.45) / 2, -5.6 - (rows - 1) * 2.35, sideCols, 2.45, -2.35);
+    else putGrid(spots, people, -((Math.min(sideCols, people.length) - 1) * 2.45) / 2, 5.6, sideCols, 2.45, 2.35);
+  });
+
+  const links = [];
+  for (const [id, s] of spots) {
+    if (id === master?.id) continue;
+    links.push({ a: hub, b: s.pos, wide: isFamilyName(all.find((b) => b.id === id)?.name) || isLeadName(all.find((b) => b.id === id)?.name), lift: 1.05 });
+  }
+  let minX = -8, maxX = 8, minZ = -8, maxZ = 8;
+  for (const s of spots.values()) {
+    minX = Math.min(minX, s.pos.x - 1.6);
+    maxX = Math.max(maxX, s.pos.x + 1.6);
+    minZ = Math.min(minZ, s.pos.z - 1.6);
+    maxZ = Math.max(maxZ, s.pos.z + 1.6);
+  }
+  const modMark = { x: -5.6, z: 0, w: Math.max(6, modCols * 2.45 + 2), d: Math.max(4, modRows * 2.35 + 3) };
+  return {
+    rooms: [{ id: 'office', name: 'הצוות', x: 0, z: 0, w: maxX - minX, d: maxZ - minZ }],
+    spots, links, lounge: null,
+    bounds: { minX, maxX, minZ, maxZ },
+    modMark, hub,
+    furn: master ? [...spots.values()] : [...spots.values(), { pos: hub.clone(), yaw: 0.35, lead: true }],
+  };
+}
+
 
 function signTexture(name, color) {
   const c = document.createElement('canvas');
@@ -250,6 +236,59 @@ function addLounge(root, at) {
   root.add(g);
 }
 
+let floorMat = null;
+
+function neonFloorMaterial() {
+  return new THREE.ShaderMaterial({
+    uniforms: { uTime: { value: 0 } },
+    vertexShader: `
+      varying vec2 vUv;
+      void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }
+    `,
+    fragmentShader: `
+      uniform float uTime;
+      varying vec2 vUv;
+      void main() {
+        vec2 p = vUv * vec2(22.0, 16.0);
+        vec2 g = p + vec2(uTime * 0.35, -uTime * 0.12);
+        vec2 f = abs(fract(g) - 0.5);
+        float grid = smoothstep(0.47, 0.5, max(f.x, f.y));
+        float flow = 0.45 + 0.55 * sin(p.x * 1.7 - uTime * 1.6 + p.y);
+        vec2 cell = floor(vUv * vec2(90.0, 64.0));
+        float n = fract(sin(dot(cell, vec2(12.9898, 78.233))) * 43758.5453);
+        float tw = step(0.965, n) * (0.35 + 0.65 * sin(uTime * 2.4 + n * 40.0));
+        vec3 col = vec3(0.012, 0.008, 0.02);
+        col += vec3(0.45, 0.16, 0.85) * grid * flow;
+        col += vec3(0.75, 0.65, 1.0) * tw * 0.9;
+        gl_FragColor = vec4(col, 1.0);
+      }
+    `,
+  });
+}
+
+function starField(w, d, at) {
+  const n = 80;
+  const pos = new Float32Array(n * 3);
+  for (let i = 0; i < n; i++) {
+    pos[i * 3] = (Math.random() - 0.5) * w;
+    pos[i * 3 + 1] = 3.2 + Math.random() * 4.5;
+    pos[i * 3 + 2] = (Math.random() - 0.5) * d;
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  const pts = new THREE.Points(geo, new THREE.PointsMaterial({ color: 0xe9d5ff, size: 0.06, transparent: true, opacity: 0.85, depthWrite: false }));
+  pts.position.set(at.x, 0, at.z);
+  pts.name = 'hall-stars';
+  pts.userData.stars = true;
+  return pts;
+}
+
+export function tickFloor(t) {
+  if (floorMat) floorMat.uniforms.uTime.value = t;
+  const stars = floorMat && floorMat.userData.stars;
+  if (stars) stars.material.opacity = 0.45 + 0.4 * (0.5 + 0.5 * Math.sin(t * 2.2));
+}
+
 export function buildHall(parent, layout) {
   const old = parent.getObjectByName('team-hall');
   if (old) {
@@ -262,80 +301,34 @@ export function buildHall(parent, layout) {
   const pad = 1.8;
   const fw = (b.maxX - b.minX) + pad * 2;
   const fd = (b.maxZ - b.minZ) + pad * 2;
-  const floor = new THREE.Mesh(
-    new THREE.PlaneGeometry(fw, fd),
-    new THREE.MeshStandardMaterial({ color: 0x16101f, roughness: 0.92, metalness: 0.04 }),
-  );
+  floorMat = neonFloorMaterial();
+  const floor = new THREE.Mesh(new THREE.PlaneGeometry(fw, fd), floorMat);
   floor.rotation.x = -Math.PI / 2;
   floor.position.set((b.minX + b.maxX) / 2, 0.01, (b.minZ + b.maxZ) / 2);
   floor.receiveShadow = true;
   floor.name = 'hall-floor';
   root.add(floor);
-  const lipMat = new THREE.MeshBasicMaterial({ color: 0xc084fc, transparent: true, opacity: 0.85, blending: THREE.AdditiveBlending, depthWrite: false });
-  const lip = new THREE.Mesh(new THREE.RingGeometry(Math.max(fw, fd) * 0.5 - 0.08, Math.max(fw, fd) * 0.5, 4), lipMat);
-  // A thin neon edge is drawn as four bars so it follows the rectangle, not a circle.
-  const yLip = 0.03;
-  const cx = floor.position.x, cz = floor.position.z;
-  for (const [w, d, x, z] of [[fw, 0.06, cx, cz - fd / 2], [fw, 0.06, cx, cz + fd / 2], [0.06, fd, cx - fw / 2, cz], [0.06, fd, cx + fw / 2, cz]]) {
-    const bar = new THREE.Mesh(new THREE.BoxGeometry(w, 0.025, d), lipMat);
-    bar.position.set(x, yLip, z);
-    root.add(bar);
-  }
-  lip.geometry.dispose();
-
-  for (const room of layout.rooms) {
-    const g = new THREE.Group();
-    g.position.set(room.x, 0, room.z);
-    const neon = new THREE.MeshBasicMaterial({ color: room.color, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false });
-    const hw = room.w / 2, hd = room.d / 2;
-    const carpet = new THREE.Mesh(
-      new THREE.PlaneGeometry(room.w, room.d),
-      carpetMaterial(room.color),
-    );
-    carpet.rotation.x = -Math.PI / 2;
-    carpet.position.y = 0.02;
-    carpet.receiveShadow = true;
-    g.add(carpet);
+  const stars = starField(fw, fd, floor.position);
+  floorMat.userData.stars = stars;
+  root.add(stars);
+  if (layout.modMark) {
+    const m = layout.modMark;
+    const neon = new THREE.MeshBasicMaterial({ color: 0xe9d5ff, transparent: true, opacity: 0.85, blending: THREE.AdditiveBlending, depthWrite: false });
     for (const [w, d, x, z] of [
-      [room.w, 0.06, 0, -hd], [room.w, 0.06, 0, hd], [0.06, room.d, -hw, 0], [0.06, room.d, hw, 0],
+      [m.w, 0.045, m.x, m.z - m.d / 2], [m.w, 0.045, m.x, m.z + m.d / 2],
+      [0.045, m.d, m.x - m.w / 2, m.z], [0.045, m.d, m.x + m.w / 2, m.z],
     ]) {
-      const line = new THREE.Mesh(new THREE.BoxGeometry(w, 0.02, d), neon);
-      line.position.set(x, 0.035, z);
-      g.add(line);
+      const line = new THREE.Mesh(new THREE.BoxGeometry(w, 0.015, d), neon);
+      line.position.set(x, 0.03, z);
+      root.add(line);
     }
-    const planterMat = new THREE.MeshStandardMaterial({ color: 0x3a2a22, roughness: 0.8 });
-    const leafMat = new THREE.MeshStandardMaterial({ color: 0x2f7a45, roughness: 0.7 });
-    for (const x of [-hw + 0.4, hw - 0.4]) {
-      const box = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.28, 0.28), planterMat);
-      box.position.set(x, 0.16, hd - 0.2);
-      const leaf = new THREE.Mesh(new THREE.ConeGeometry(0.22, 0.35, 6), leafMat);
-      leaf.position.set(x, 0.42, hd - 0.2);
-      g.add(box, leaf);
-    }
-    addCeiling(g, room);
-    const sw = Math.min(room.w * 0.55, 3.2);
-    const sh = 0.48;
-    const map = signTexture(room.name, room.color);
-    const plate = new THREE.Mesh(new THREE.PlaneGeometry(sw, sh), new THREE.MeshBasicMaterial({ color: 0x14081c, side: THREE.FrontSide }));
-    const sign = new THREE.Mesh(new THREE.PlaneGeometry(sw * 0.96, sh * 0.86), new THREE.MeshBasicMaterial({
-      map, side: THREE.FrontSide, toneMapped: false,
-    }));
-    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 1.15, 8), new THREE.MeshStandardMaterial({ color: 0x2a2433, metalness: 0.4, roughness: 0.4 }));
-    pole.position.set(0, 0.7, -hd + 0.35);
-    plate.position.set(0, 1.45, -hd + 0.35);
-    sign.position.set(0, 1.45, -hd + 0.4);
-    plate.userData.billboard = sign.userData.billboard = true;
-    plate.userData.roomId = sign.userData.roomId = room.id;
-    g.add(pole, plate, sign);
-    const pad = new THREE.Mesh(new THREE.PlaneGeometry(room.w - 0.4, room.d - 0.4), new THREE.MeshBasicMaterial({ visible: false }));
-    pad.rotation.x = -Math.PI / 2;
-    pad.position.y = 0.04;
-    pad.userData.roomId = room.id;
-    g.add(pad);
-    root.add(g);
+    const map = signTexture('MoD', 0xe9d5ff);
+    const sign = new THREE.Mesh(new THREE.PlaneGeometry(1.8, 0.42), new THREE.MeshBasicMaterial({ map, transparent: true, side: THREE.FrontSide, toneMapped: false }));
+    sign.position.set(m.x, 1.35, m.z - m.d / 2);
+    sign.userData.billboard = true;
+    root.add(sign);
   }
-  if (layout.lounge) addLounge(root, layout.lounge);
-  buildFurniture(root, [...layout.spots.values()]);
+  buildFurniture(root, layout.furn || [...layout.spots.values()]);
   parent.add(root);
   return root;
 }

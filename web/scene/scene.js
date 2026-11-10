@@ -5,20 +5,20 @@ import { CSS2DRenderer } from 'three/addons/renderers/CSS2DRenderer.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
-import { loadOfficeAssets } from './office.js?v=7';
-import { Building } from './building.js?v=7';
-import { createDaylight } from './daylight.js?v=7';
-import { createPost } from './post.js?v=7';
-import { studioCss } from './studio.js?v=7';
-import { Actor } from './actor.js?v=7';
-import { generateBlob } from './blobgen.js?v=7';
-import { Spring, clamp, REDUCED } from './spring.js?v=7';
-import { sofiaHour, fontsPromise } from './walls.js?v=7';
-import { applyDesks, tick as tickLife, ensureCat, petCat, sendMail, addressedTo, cullLabels } from './life.js?v=7';
-import { syncTeam, tickTeam, blockedDesk } from './modteam.js?v=7';
-import { spawnBeam, spawnTrail, tickPackets, setNetwork, tickNetwork } from './packets.js?v=7';
-import { useHall, layoutHall, buildHall, faceSign } from './rooms.js?v=7';
-import { initQuality, getQuality, isSoftGpu, tickPolish, ensureDust, tickDust, syncRug, accentFor } from './polish.js?v=7';
+import { loadOfficeAssets } from './office.js?v=8';
+import { Building } from './building.js?v=8';
+import { createDaylight } from './daylight.js?v=8';
+import { createPost } from './post.js?v=8';
+import { studioCss } from './studio.js?v=8';
+import { Actor } from './actor.js?v=8';
+import { generateBlob } from './blobgen.js?v=8';
+import { Spring, clamp, REDUCED } from './spring.js?v=8';
+import { sofiaHour, fontsPromise } from './walls.js?v=8';
+import { applyDesks, tick as tickLife, ensureCat, petCat, sendMail, addressedTo, cullLabels } from './life.js?v=8';
+import { syncTeam, tickTeam, blockedDesk } from './modteam.js?v=8';
+import { spawnBeam, spawnTrail, tickPackets, setNetwork, tickNetwork } from './packets.js?v=8';
+import { useHall, layoutHall, buildHall, faceSign, tickFloor } from './rooms.js?v=8';
+import { initQuality, getQuality, isSoftGpu, tickPolish, ensureDust, tickDust, syncRug, accentFor } from './polish.js?v=8';
 
 // Relative to the page (not the site root), so the office also works when it is published in a sub-folder, e.g.
 // https://bodila51.github.io/grokbot-wallpaper/office/ -> ../assets. Locally the page is at `/`, where this is /assets.
@@ -26,7 +26,7 @@ const ASSETS = '../assets';
 const ISO_DIR = new THREE.Vector3(1, 1, 1).normalize();
 const HOME = { x: 0, y: 0.6, z: 0 };
 const PITCH = 40 * Math.PI / 180;                   // look down into the rooms
-const DIST = { min: 4.5, max: 48, phone: 11, hall: 22 };
+const DIST = { min: 6, max: 110, phone: 11, hall: 28 };
 const VIEW_SPAN = { w: 28, h: 18 };
 const UI_LEFT = 230, UI_RIGHT = 360;                   // glass panels the building must not hide behind
 const SIN_E = Math.sin(Math.atan(1 / Math.SQRT2));      // sin(35.264°) = ground foreshortening
@@ -423,12 +423,7 @@ function frameAll(snap) {
 }
 
 function frameDefault(snap) {
-  if (isPortraitPhone()) {
-    const id = lastView?.currentFloor;
-    const room = hallLayout?.rooms?.find((r) => r.id === id) || hallLayout?.rooms?.[0];
-    if (room) focusRoom(room.id, snap);
-    else frameAll(snap);
-  } else frameAll(snap);
+  frameAll(snap);
 }
 
 export function zoom(dir) {
@@ -441,7 +436,7 @@ export function zoom(dir) {
 function focusRoom(id, snap = false) {
   const room = hallLayout?.rooms?.find((r) => r.id === id);
   if (!room || !building) return;
-  const dist = isPortraitPhone() ? 10.2 : distanceFor(room.w + 1.4, room.d + 1.4);
+  const dist = distanceFor(room.w + 2, room.d + 2);
   aim(room.x, 0.9, room.z, dist, snap);
 }
 
@@ -784,6 +779,7 @@ function frame(t) {
     const busy = crew.filter((b) => (b.effective_status || b.status) === 'working').length;
     tickNetwork(REDUCED ? 0 : dt, busy ? 0.62 : 0.2);
     tickPolish(open.obj, daylight?.state?.night || 0);
+    tickFloor(nowSec);
     const hallMesh = open.root.getObjectByName('team-hall');
     if (hallMesh) {
       hallMesh.updateMatrixWorld(true);

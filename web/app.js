@@ -1,9 +1,9 @@
 // Glue: polls /api/state (CONTRACT §4), keeps the view (floor, selection), feeds the scene and the UI.
 // With #<topic> in the link it reads the user's bots from their channel instead (feed.js, lib/feedbase.js): no server.
 // Without either (static preview) it runs on web/data/demo-state.json with a local simulation.
-import { initScene, renderScene, zoom, focusBot } from './scene/scene.js?v=7';
-import { sfx } from './audio/sound.js?v=7';
-import { initHud, renderHud } from './scene/hud.js?v=7';
+import { initScene, renderScene, zoom, focusBot } from './scene/scene.js?v=8';
+import { sfx } from './audio/sound.js?v=8';
+import { initHud, renderHud } from './scene/hud.js?v=8';
 
 const POLL_MS = 1000;
 const view = { currentFloor: null, selectedBot: null };
@@ -20,7 +20,7 @@ if (WALLPAPER) document.documentElement.classList.add('wallpaper');
 document.documentElement.classList.add('hq-quiet');
 
 try {
-  ui = await import(WALLPAPER ? './wallpaper.js?v=7' : './ui/ui.js?v=7');
+  ui = await import(WALLPAPER ? './wallpaper.js?v=8' : './ui/ui.js?v=8');
 } catch (err) {
   console.warn('[app] UI module not available yet:', err.message);
 }
@@ -98,13 +98,23 @@ if (cycleSec >= 5) {
   }, cycleSec * 1000);
 }
 
+function asOneOffice(s) {
+  if (!s?.bots) return s;
+  const ids = Object.keys(s.bots);
+  if (!ids.length) return s;
+  const bots = {};
+  for (const id of ids) bots[id] = { ...s.bots[id], floor: 'office' };
+  return { ...s, bots, floors: [{ id: 'office', name: 'הצוות', order: 1, bots: ids }] };
+}
+
 function render() {
   if (!state) return;
-  if (!view.currentFloor || !state.floors.some((f) => f.id === view.currentFloor)) view.currentFloor = pickDefaultFloor();
-  if (view.selectedBot && !state.bots[view.selectedBot]) view.selectedBot = null;
-  renderScene(state, view);
-  ui.renderUI(state, view);
-  if (!WALLPAPER) renderHud(state, view);
+  const office = asOneOffice(state);
+  if (!view.currentFloor || !office.floors.some((f) => f.id === view.currentFloor)) view.currentFloor = office.floors[0]?.id ?? null;
+  if (view.selectedBot && !office.bots[view.selectedBot]) view.selectedBot = null;
+  renderScene(office, view);
+  ui.renderUI(office, view);
+  if (!WALLPAPER) renderHud(office, view);
   if (!WALLPAPER) soundStatusChanges();
 }
 
@@ -144,10 +154,10 @@ async function poll() {
 // ---------- the user's own bots: #<topic> ----------
 
 const DEMO = params.get('demo') === '1';
-const { feedFromLink } = await import('./lib/feedbase.js?v=7');
+const { feedFromLink } = await import('./lib/feedbase.js?v=8');
 if (DEMO) startModDemo();
 else if (feedFromLink(location)) {                              // #<topic>, #<topic>@<host>, ?feed=<host>#<topic>
-  const { feedFromHash, connectFeed } = await import('./feed.js?v=7');
+  const { feedFromHash, connectFeed } = await import('./feed.js?v=8');
   connectFeed(feedFromHash(location.hash, location.search), (data) => { state = data; render(); });
   addEventListener('hashchange', () => location.reload());   // another channel: start over
 } else {
@@ -163,7 +173,7 @@ function startModDemo() {
   banner.textContent = 'Demo · fake data, not the live feed';
   document.body.append(banner);
   const groups = [
-    ['MoD ותפעול', ['MoD', 'MoD2', 'MoD3', 'MoD5', 'MoD6', 'MoD7']],
+    ['הצוות', ['Master', 'MoD', 'MoD1', 'MoD2', 'MoD3', 'Mod5', 'MoD6', 'MoD7', 'Mod8']],
     ['Logistic Care', ['Lane', 'Porter', 'Cargo', 'Route']],
     ['עוזרים אישיים', ['Noa', 'Amit', 'Yael', 'Dana']],
     ['QA ותמיכה', ['QA1', 'QA2', 'QA3', 'QA4', 'QA5']],
