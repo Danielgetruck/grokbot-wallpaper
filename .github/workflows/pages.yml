@@ -1,8 +1,6 @@
-# Publishes the Grok Bot wallpaper site to GitHub Pages on every push to main:
-# https://bodila51.github.io/grokbot-wallpaper/        the landing page (landing/), with the live wallpaper in it
-# https://bodila51.github.io/grokbot-wallpaper/face/   the wallpaper itself with its demo data (installed wallpapers
-# point here and pick up every change by themselves). landing/assemble.mjs lists what goes out (no journal, keys or
-# source art); the same tree is deployed to https://0xcodila.com/grokbot-wallpaper/, the landing's main address.
+# Publishes the static Grok Bot wallpaper site to GitHub Pages on every push to main.
+# No secrets. contents stays read-only except the deploy job, which is the only place that
+# may write Pages and request the Pages OIDC token.
 name: Pages
 on:
   push:
@@ -10,22 +8,28 @@ on:
   workflow_dispatch:
 permissions:
   contents: read
-  pages: write
-  id-token: write
 concurrency:
   group: pages
   cancel-in-progress: true
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - name: Assemble the site
         run: node landing/assemble.mjs _site
-      - uses: actions/configure-pages@v5
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5
+        with:
+          # Turns Pages on for this repo when the token is allowed to. GITHUB_TOKEN often
+          # cannot (administration), in which case the repo owner enables Source: GitHub Actions once.
+          enablement: true
+      - uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3
       - id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4

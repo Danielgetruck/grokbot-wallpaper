@@ -16,7 +16,7 @@ const BLUR_TAIL = 0.4;                  // s for the blur to clear after the swa
 const BLUR_PX = 7;
 const REDUCED = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
 const CAB_H = 2.2;
-const NIGHT_TINT = [0.2, 0.26, 0.42];   // used when a baked mesh has no night lightmap
+const NIGHT_TINT = [0.34, 0.18, 0.55];  // plum stand-in when a baked mesh has no night lightmap yet
 
 // Night lightmaps (assets/office/night/<mesh name>.jpg) are loaded lazily, only once --night > 0, shared by every
 // floor clone and disposed again after a stretch of full day (they are big: 3072x2304 for the floor).
@@ -183,6 +183,7 @@ export class Building {
   // tinted day map. All materials baked from the same mesh share one record (uniforms + the lazily loaded texture).
   patchBaked(mat, name) {
     mat.userData.nightPatched = true;
+    if (!mat.userData.bqSurface) mat.userData.bqSurface = /wall/.test(name) ? 'wall' : 'floor';
     let rec = this.nightRecs.get(name);
     if (!rec) {
       const override = this.assets.nightMaps.get(name);

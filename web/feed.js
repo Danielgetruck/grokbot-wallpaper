@@ -151,7 +151,8 @@ export async function connectFeed({ topic, servers }, onState) {
     }
     if (isMap(rec.chat)) {                               // only app deep links and web pages (the store refuses scripts)
       for (const [name, url] of Object.entries(rec.chat).slice(0, 400)) {
-        if (typeof url === 'string' && /^(grokbot|https):\/\//i.test(url.trim())) (cfg[name] ||= {}).chat_url = url.trim();
+        const chat = safeChatUrl(url);
+        if (chat) (cfg[name] ||= {}).chat_url = chat;
       }
       store.setBotsConfig(cfg);
       return true;
@@ -225,3 +226,11 @@ async function beacon(topic, { bots, floors, tags, has }) {
 }
 
 function isMap(v) { return !!v && typeof v === 'object' && !Array.isArray(v); }
+
+/** App deep links and https pages only. Control characters and markup are dropped so a feed line cannot become a script URL. */
+function safeChatUrl(url) {
+  if (typeof url !== 'string') return null;
+  const u = url.trim();
+  if (!u || /[\u0000-\u001f\s<>"']/.test(u) || !/^(grokbot|https):\/\//i.test(u)) return null;
+  return u;
+}

@@ -27,7 +27,7 @@ const DAY = P({
   sunI: 2.4, sunC: rgb('#FFF1DE'),
   hemiI: 1.05, hemiSky: rgb('#F3F2F0'), hemiGnd: rgb('#CFC8BE'),
   fillI: 0.35, fillC: rgb('#E6EEFF'), envI: 0.5, exposure: 1.05,
-  shadow: 0.34, tint: [1.42, 1.43, 1.46], floorSun: 0.72, floorSunC: rgb('#FFF6EC'),
+  shadow: 0.34, floorTint: [0.58, 0.3, 0.86], wallTint: [0.98, 0.7, 1.18], floorSun: 0.16, floorSunC: rgb('#D8C4FF'),
   glassC: rgb('#D2E4F2'), glassA: 0.22, glassE: 0.12,
 });
 const MORNING = P({                                       // fresh: near-white floor, cool shade, pale sky in the glass
@@ -35,7 +35,7 @@ const MORNING = P({                                       // fresh: near-white f
   sunI: 2.6, sunC: rgb('#FFEFD9'),
   hemiI: 1.0, hemiSky: rgb('#E1EAFF'), hemiGnd: rgb('#C6CAD2'),
   fillI: 0.38, fillC: rgb('#DCE6FF'), envI: 0.5, exposure: 1.07,
-  shadow: 0.36, tint: [2.05, 2.15, 2.35], floorSun: 0.72, floorSunC: rgb('#FFEEDA'),
+  shadow: 0.36, floorTint: [0.62, 0.34, 0.92], wallTint: [1.02, 0.74, 1.22], floorSun: 0.34, floorSunC: rgb('#E6E0FF'),
   glassC: rgb('#A6CCF2'), glassA: 0.82, glassE: 0.5,
 });
 const GOLDEN = P({                                        // sunset: warm amber room, glowing glass, long golden light
@@ -43,7 +43,7 @@ const GOLDEN = P({                                        // sunset: warm amber 
   sunI: 2.8, sunC: rgb('#FFA458'),
   hemiI: 0.85, hemiSky: rgb('#FFD0A4'), hemiGnd: rgb('#B48466'),
   fillI: 0.3, fillC: rgb('#FFC9A4'), envI: 0.4, exposure: 1.05,
-  shadow: 0.4, tint: [2.3, 1.32, 0.62], floorSun: 1.0, floorSunC: rgb('#FFD27E'),
+  shadow: 0.4, floorTint: [0.68, 0.3, 0.72], wallTint: [1.05, 0.58, 1.0], floorSun: 0.4, floorSunC: rgb('#F0C8EE'),
   glassC: rgb('#FFC064'), glassA: 0.86, glassE: 1.0,
 });
 const DAWN = P({                                          // blue hour before sunrise
@@ -51,7 +51,7 @@ const DAWN = P({                                          // blue hour before su
   sunI: 0.3, sunC: rgb('#FFC9B0'),
   hemiI: 0.8, hemiSky: rgb('#B9C2E6'), hemiGnd: rgb('#8A8798'),
   fillI: 0.25, fillC: rgb('#BFC8F0'), envI: 0.3, exposure: 1.04,
-  shadow: 0.3, tint: [1.3, 1.32, 1.48], floorSun: 0, floorSunC: rgb('#FFEBD2'),
+  shadow: 0.3, floorTint: [0.52, 0.3, 0.78], wallTint: [0.82, 0.58, 1.05], floorSun: 0, floorSunC: rgb('#E4D6FF'),
   glassC: rgb('#7F98CF'), glassA: 0.6, glassE: 0.45,
 });
 const DUSK = P({                                          // after sunset: lamps come on in a violet afterglow
@@ -59,7 +59,7 @@ const DUSK = P({                                          // after sunset: lamps
   sunI: 0.3, sunC: rgb('#FF9070'),
   hemiI: 0.7, hemiSky: rgb('#8C7896'), hemiGnd: rgb('#3A3040'),
   fillI: 0.2, fillC: rgb('#8A80B8'), envI: 0.28, exposure: 1.03,
-  shadow: 0.32, tint: [1.3, 1.02, 0.84], floorSun: 0, floorSunC: rgb('#FFD27E'),
+  shadow: 0.32, floorTint: [0.55, 0.26, 0.74], wallTint: [0.85, 0.52, 0.98], floorSun: 0, floorSunC: rgb('#E4D6FF'),
   glassC: rgb('#4A5487'), glassA: 0.8, glassE: 0.5,
 });
 const NIGHT = P({                                         // dim warm room, lamp pools on the desks, deep navy glass
@@ -67,7 +67,7 @@ const NIGHT = P({                                         // dim warm room, lamp
   sunI: 0.2, sunC: rgb('#8CA6FF'),
   hemiI: 0.4, hemiSky: rgb('#6A6158'), hemiGnd: rgb('#2A2420'),
   fillI: 0.15, fillC: rgb('#8C8098'), envI: 0.2, exposure: 1.0,
-  shadow: 0.4, tint: [0.95, 0.8, 0.62], floorSun: 0, floorSunC: rgb('#FFEBD2'),
+  shadow: 0.4, floorTint: [0.48, 0.24, 0.72], wallTint: [0.72, 0.46, 0.95], floorSun: 0, floorSunC: rgb('#E4D6FF'),
   glassC: rgb('#1A2A66'), glassA: 0.92, glassE: 0.5,
 });
 
@@ -244,7 +244,7 @@ export function createDaylight({ scene, renderer }) {
     inst?.root.traverse((o) => {
       if (!o.isMesh) return;
       const mats = Array.isArray(o.material) ? o.material : [o.material];
-      const on = mats.every((m) => isLit(m) && !m.transparent) && !NO_SHADOW.test(o.name) && !NO_SHADOW.test(o.parent?.name || '');
+      const on = mats.every((m) => isLit(m) && !m.transparent) && !NO_SHADOW.test(o.name) && !NO_SHADOW.test(o.parent?.name || '') && !o.userData.noShadow;
       o.castShadow = o.receiveShadow = on;
     });
     tables = [];
@@ -304,7 +304,7 @@ export function createDaylight({ scene, renderer }) {
       if (kind === 'lamp') mat.emissiveIntensity = p.lamps * 2.4;
       else if (kind === 'windows') mat.emissiveIntensity = p.windows * 1.7;
     }
-    for (const mat of baked) mat.color.setRGB(...p.tint);
+    for (const mat of baked) mat.color.setRGB(...(mat.userData.bqSurface === 'wall' ? p.wallTint : p.floorTint));
     tmp.setRGB(...p.glassC, THREE.SRGBColorSpace);
     for (const mat of glass) { mat.color.copy(tmp); mat.emissive.copy(tmp).multiplyScalar(p.glassE); mat.opacity = p.glassA; }
     patch.update(dir, p.floorSunC, p.floorSun, 1 - p.bake);

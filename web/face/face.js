@@ -267,11 +267,11 @@ function libFace(bot, look) {
       if (d < best) { best = d; hex = p; }
     }
   }
-  return `<img src="../assets/blobs/lib/${shape}-${hex}.png" alt="" draggable="false" data-fb="${esc(avatar(bot, look))}" onerror="this.outerHTML=this.dataset.fb">`;
+  return `<img src="../assets/blobs/lib/${shape}-${hex}.png" alt="" draggable="false">`;
 }
 function avatar(bot, look) {
   const shape = look?.shape || SHAPES[hash(bot.id) % SHAPES.length];
-  const c = look?.color || bot.color || '#8E8E93';
+  const c = safeHex(look?.color || bot.color);
   const tilt = ((hash(bot.id + 't') % 30) - 15);
   const eye = 'fill="#fff"';
   const [r, g, bl] = [1, 3, 5].map((i) => parseInt(c.slice(i, i + 2), 16) / 255);
@@ -361,6 +361,10 @@ function render(st) {
 }
 
 function esc(s) { return String(s ?? '').replace(/[&<>"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch])); }
+function safeHex(c) {
+  const m = /^#?([0-9a-fA-F]{6})$/.exec(String(c || '').trim());
+  return m ? `#${m[1]}` : '#8E8E93';
+}
 
 function countTo(el, to) {                               // numbers roll to their new value instead of jumping
   const from = Number(el.dataset.v ?? 0);
@@ -383,7 +387,13 @@ stack.addEventListener('pointerover', (e) => {
   if (!av || drag) return;
   const b = byId[av.dataset.id];
   if (!b) return;
-  tip.innerHTML = `<b>${esc(b.name)}</b><span>${STATUS[statusOf(b)].text}</span>${b.step ? `<p>${esc(b.step)}</p>` : ''}`;
+  tip.replaceChildren();
+  const nameEl = document.createElement('b');
+  nameEl.textContent = b.name || '';
+  const statusEl = document.createElement('span');
+  statusEl.textContent = STATUS[statusOf(b)].text;
+  tip.append(nameEl, statusEl);
+  if (b.step) { const stepEl = document.createElement('p'); stepEl.textContent = b.step; tip.append(stepEl); }
   tip.hidden = false;
   const r = av.getBoundingClientRect(), t = tip.getBoundingClientRect();
   const x = Math.min(innerWidth - t.width - 8, Math.max(8, r.left + r.width / 2 - t.width / 2));
@@ -668,6 +678,13 @@ const WORDS = {
   done: 'done', finished: 'done', complete: 'done', completed: 'done', success: 'done',
   idle: 'idle', resting: 'idle', sleeping: 'idle', paused: 'idle', stopped: 'idle',
 };
+function safeLook(look) {
+  if (!look || typeof look !== 'object') return null;
+  const shape = typeof look.shape === 'string' && SHAPES.includes(look.shape.trim()) ? look.shape.trim() : null;
+  const color = /^#?[0-9a-fA-F]{6}$/.test(String(look.color || '').trim()) ? safeHex(look.color) : null;
+  const accessory = typeof look.accessory === 'string' && ['none', 'glasses', 'stem', 'antenna', 'bow'].includes(look.accessory) ? look.accessory : 'none';
+  return (shape || color) ? { shape, color, accessory } : null;
+}
 function botId(name) {
   const s = String(name).normalize('NFC').toLowerCase().replace(/[а-яёіїєґ]/g, (c) => CYR[c] ?? '').normalize('NFKD')
     .replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 48).replace(/-+$/g, '');
@@ -679,7 +696,10 @@ function applyLine(text, time) {                         // a status, roster, lo
   try { ev = JSON.parse(text); } catch { return false; }
   const at = new Date((Number(time) || Date.now() / 1000) * 1000).toISOString();
   if (ev?.looks && typeof ev.looks === 'object' && !Array.isArray(ev.looks)) {   // how each bot looks: its avatar
-    for (const [name, look] of Object.entries(ev.looks).slice(0, 400)) if (look && typeof look === 'object') looks[botId(name)] = look;
+    for (const [name, look] of Object.entries(ev.looks).slice(0, 400)) {
+      const clean = safeLook(look);
+      if (clean) looks[botId(name)] = clean;
+    }
     crew = '';                                           // rebuild the avatars
     return true;
   }
