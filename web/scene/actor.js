@@ -79,6 +79,18 @@ export class Actor {
     this.tag.visible = false;
     this.pivot.add(this.tag);
 
+    this.sayEl = document.createElement('div');
+    this.sayEl.className = 'hqt-say';
+    this.sayEl.hidden = true;
+    this.sayText = document.createElement('span');
+    this.sayEl.append(this.sayText);
+    this.say = new CSS2DObject(this.sayEl);
+    this.say.center.set(0.5, 1);
+    this.say.position.y = MODEL_HEIGHT + 0.55;
+    this.pivot.add(this.say);
+    this.sayUntil = 0;
+    this.sayStep = '';
+
     this.setPlaceholderModel(bot.color);
     ctx.parent.add(this.root);
   }
@@ -120,6 +132,7 @@ export class Actor {
     this.modelScale = model.scale.x || 1;
     box.setFromObject(model);
     this.tag.position.y = box.max.y + 0.24;                       // pill floats just above this blob's head
+    this.say.position.y = box.max.y + 0.55;
     this.useModel(model, eyes, false);
   }
 
@@ -157,10 +170,31 @@ export class Actor {
     }
     this.ring.position.y = 0.012 - (this.spot ? this.spot.pos.y : 0);
 
+    const step = bot.step || '';
+    if (step !== this.sayStep) {
+      this.sayStep = step;
+      if (prev) this.speak(step, status === 'waiting_user' ? 6 : 4, view.now || 0);
+    }
+    this.refreshSay(view.now || 0);
+
     if (statusChanged && prev) {
       if (status === 'done') { this.celebrate(); this.hop(0.45); }
       else if (status === 'waiting_user' || status === 'error') this.hop(0.3);
     }
+  }
+
+  speak(text, seconds = 4, now = 0) {
+    const t = String(text || '').replace(/\s+/g, ' ').trim().slice(0, 80);
+    if (!t) return;
+    this.sayText.textContent = t;
+    this.sayUntil = now + seconds;
+    this.sayEl.hidden = false;
+  }
+
+  refreshSay(now) {
+    const show = (this.hovered || now < this.sayUntil) && !!(this.sayText.textContent);
+    this.sayEl.hidden = !show;
+    this.say.visible = show && this.hostAlpha > 0.5 && !this.retiring;
   }
 
   // Quiet by default: selected (dark pill, name), needs-the-user (compact pill, short reason), hovered (pill, name).
@@ -189,6 +223,8 @@ export class Actor {
     this.hovered = on;
     if (on && !this.anim) this.hop(0.2);
     this.renderTag();
+    if (on && this.bot?.step) this.speak(this.bot.step, 2.5, this.ctx.now || 0);
+    this.refreshSay(this.ctx.now || 0);
   }
 
   retire() {
@@ -275,10 +311,10 @@ export class Actor {
         const k = (t + this.phase) % 1.6;
         if (k < 0.45) ox = 0.03 * Math.sin(k * 70);
       }
-      if (s === 'waiting_user' && !this.anim) {
-        this.nextAction -= dt;
-        if (this.nextAction <= 0) { this.hop(0.32); this.nextAction = 1.7 + Math.random() * 0.6; }
-      }
+    }
+    if (s === 'waiting_user' && !this.anim && !this.spotIsLounge()) {
+      y += 0.34;                                              // stand up off the chair
+      if (!REDUCED) rz += 0.28 * Math.sin(t * 7 + this.phase); // wave
     }
 
     // one-shot animation
@@ -354,6 +390,7 @@ export class Actor {
 
     // tag follows the host floor: hidden while that floor is faded / lifted
     this.tag.visible = this.tagEl.dataset.mode !== 'off' && this.hostAlpha > 0.5 && !this.retiring && this.scaleS.x > 0.6;     // no tag before the blob has dropped in
+    this.refreshSay(t);
 
     this.tickEyes(dt);
     if (this.retiring && this.scaleS.x < 0.03) { this.dead = true; this.dispose(); }

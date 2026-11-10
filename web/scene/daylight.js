@@ -90,10 +90,10 @@ const PLACES = {                                          // a city per common t
   'America/New_York': [40.7, -74], 'America/Chicago': [41.9, -87.6], 'America/Denver': [39.7, -105], 'America/Los_Angeles': [34.05, -118.25],
   'America/Sao_Paulo': [-23.55, -46.6],
 };
+const JERUSALEM = [31.78, 35.22];                    // Asia/Jerusalem: the office clock, unless ?lat=&lon= or ?time=
 function wherePlace(params) {
   if (params.has('lat') && params.has('lon')) return [Number(params.get('lat')), Number(params.get('lon'))];
-  const zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-  return PLACES[zone] || [45, -new Date().getTimezoneOffset() / 4];   // unknown zone: mid latitudes, longitude from the offset
+  return JERUSALEM;
 }
 
 // [elevation, azimuth from the south, + toward the west] in degrees, from the hour angle and declination (radians)

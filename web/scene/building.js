@@ -436,7 +436,8 @@ export class Building {
       if (!s) return;
       s.target = isActive ? (this.screenTargets[i] || 0) : 0;
       s.glow += (s.target - s.glow) * k;
-      s.mat.emissiveIntensity = s.glow * (0.32 + 1.35 * night) + night * 0.03;
+      // life.js owns the lamp and the screen once a bot is seated; empty screens keep the old glow.
+      if (!s.mat.userData.lifeOwned) s.mat.emissiveIntensity = s.glow * (0.32 + 1.35 * night) + night * 0.03;
     });
     inst.walls?.tick(nowMs, night);
   }
