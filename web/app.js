@@ -28,6 +28,7 @@ try {
 initScene(document.getElementById('scene'), {
   onSelectBot: (id) => select(id),
   onHoverBot: (id) => sfx.hover(id),
+  onSelectFloor: (id) => setFloor(id),
 });
 
 ui.initUI({

@@ -17,17 +17,17 @@ import { sofiaHour, fontsPromise } from './walls.js';
 import { applyDesks, tick as tickLife, ensureCat, petCat, sendMail, addressedTo, cullLabels } from './life.js';
 import { syncTeam, tickTeam, blockedDesk } from './modteam.js';
 import { spawnBeam, spawnTrail, tickPackets, setNetwork, tickNetwork } from './packets.js';
-import { useHall, layoutHall, buildHall } from './rooms.js';
+import { useHall, layoutHall, buildHall, faceSign } from './rooms.js';
 import { initQuality, getQuality, isSoftGpu, tickPolish, ensureDust, tickDust, syncRug, accentFor } from './polish.js';
 
 // Relative to the page (not the site root), so the office also works when it is published in a sub-folder, e.g.
 // https://bodila51.github.io/grokbot-wallpaper/office/ -> ../assets. Locally the page is at `/`, where this is /assets.
 const ASSETS = '../assets';
 const ISO_DIR = new THREE.Vector3(1, 1, 1).normalize();
-const HOME = { x: -0.4, y: -0.3, z: 0.3 };             // camera target relative to the active floor's surface
-const VIEW_SPAN = { w: 118, h: 78 };                // the hall, framed whole
-const PHONE_SPAN_W = 29.5;                          // m across a phone's scene box: the floor + shaft fill ~90 % of the screen
-const ZOOM = { min: 0.75, max: 3, focus: 2 };
+const HOME = { x: 0, y: 0.6, z: 0 };
+const PITCH = 40 * Math.PI / 180;                   // look down into the rooms
+const DIST = { min: 4.5, max: 48, phone: 11, hall: 22 };
+const VIEW_SPAN = { w: 28, h: 18 };
 const UI_LEFT = 230, UI_RIGHT = 360;                   // glass panels the building must not hide behind
 const SIN_E = Math.sin(Math.atan(1 / Math.SQRT2));      // sin(35.264°) = ground foreshortening
 // Server desk numbers fill 1..20 in arrival order; seat them on the far side of the tables first (odd desks face
@@ -50,7 +50,8 @@ const groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
 const tmp = new THREE.Vector3();
 const clock = new THREE.Clock();
 const cam = {
-  x: new Spring(HOME.x, 0.45), y: new Spring(HOME.y, 0.55), z: new Spring(HOME.z, 0.45), zoom: new Spring(0, 0.4),   // zoom is ln(zoom)
+  x: new Spring(HOME.x, 0.45), y: new Spring(HOME.y, 0.55), z: new Spring(HOME.z, 0.45),
+  dist: new Spring(DIST.hall, 0.4), yaw: new Spring(Math.PI / 4, 0.32),
 };
 let hoveredId = null, pointerDirty = false, drag = null;
 const touches = new Map();
@@ -93,8 +94,7 @@ export function initScene(el, cbs = {}) {
   }
 
   renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'high-performance' });
-  // the post chain (MSAA, half-float) is capped at 1.5x: soft by design, and it keeps VRAM and fill cost sane
-  renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5));
+  renderer.setPixelRatio(pixelRatio());
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.05;
@@ -123,9 +123,9 @@ export function initScene(el, cbs = {}) {
   document.documentElement.dataset.sky = 'studio';        // white backdrop at every hour: the UI stays on light glass (web/styles.css)
   container.style.background = studioCss();               // the same backdrop as the post pass draws, for the first moments
 
-  camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 240);
-  camera.position.copy(ISO_DIR).multiplyScalar(80);
-  camera.lookAt(0, 0, 0);
+  camera = new THREE.PerspectiveCamera(38, 1, 0.15, 180);
+  camera.position.set(12, 10, 12);
+  camera.lookAt(0, 0.6, 0);
 
   officeAssets.then((a) => {
     assets = a;
@@ -204,17 +204,17 @@ function sync() {
       hallPlan = layoutHall(floors, floorBots);
       buildHall(inst.root, hallPlan);
       inst.hallPlan = hallPlan;
-      inst.obj.traverse((o) => {
-        if (/^station_/.test(o.name)) o.visible = false;
-        if (/^(armchair_|bar_stools_|coffee_|poufs_|sofa_|table_[12]_|laptops_|pendants_|task_board|wall_screen|wall_frames_)/.test(o.name)) o.visible = false;
-      });
-      const sheen = inst.obj.getObjectByName('floor-sheen');
-      if (sheen) sheen.visible = false;
+      inst.obj.visible = false;
       for (const o of [...pickables]) if (o.userData?.roomId) pickables.delete(o);
       inst.root.getObjectByName('team-hall')?.traverse((o) => { if (o.userData?.roomId && o.isMesh) pickables.add(o); });
     } else hallPlan = inst.hallPlan;
     hallLayout = hallPlan;
     setNetwork(inst.root, hallPlan?.links || []);
+    const frameKey = `${key}|${isPortraitPhone() ? 'p' : 'd'}`;
+    if (inst.framedKey !== frameKey) {
+      inst.framedKey = frameKey;
+      frameDefault(true);
+    }
   }
   const team = hall ? null : syncTeam(inst, floor, floorBots, assets.spots.desks);
   syncRug(inst, accentFor(floor?.name || floor?.id, !!team));
@@ -247,6 +247,7 @@ function sync() {
       attachModel(actor, bot);
     }
     actor.ctx.now = nowSec;
+    actor.ctx.names = hall && isPortraitPhone();
     const family = !hall && team && team.has(bot.id);
     const seated = hall && hallPlan?.spots.get(bot.id);
     const prefer = (DESK_ORDER[(bot.desk || 1) - 1] || 1) - 1;
@@ -287,7 +288,7 @@ function sync() {
     }
     if (TEST.cam) {
       const [x, z, zm] = TEST.cam.split(',').map(Number);
-      cam.x.snap(x); cam.z.snap(z); cam.zoom.snap(Math.log(zm || 1));
+      cam.x.snap(x); cam.z.snap(z); if (zm) cam.dist.snap(zm);
     }
   }
 }
@@ -359,12 +360,12 @@ function switchFloor(id, first) {
   actors.clear();
   hoveredId = null;
   building.setActive(id, { intro: first });
-  const y = building.activeY + HOME.y;
-  cam.x.to(HOME.x); cam.z.to(HOME.z); cam.y.to(y); cam.zoom.to(0);
-  if (first) {
-    cam.x.snap(HOME.x); cam.z.snap(HOME.z);
-    cam.y.snap(y - 2.6); cam.zoom.snap(Math.log(0.86));
-    cam.y.to(y, 0.1); cam.zoom.to(0, 0.1);
+  if (id !== '_hall') {
+    cam.x.to(HOME.x); cam.z.to(HOME.z); cam.y.to(0.8); cam.dist.to(DIST.hall);
+    if (first) {
+      cam.x.snap(HOME.x); cam.z.snap(HOME.z);
+      cam.y.snap(0.8); cam.dist.snap(DIST.hall);
+    }
   }
   switchedAt = nowSec;
   if (first) { building.prewarm(camera); hideLoader(); }
@@ -380,70 +381,115 @@ function hideLoader() {
 
 // ---------- camera (all on springs) ----------
 
-export function zoom(dir) {
-  if (!building) return;
-  if (dir === 'reset') {
-    cam.x.to(HOME.x); cam.z.to(HOME.z); cam.y.to(building.activeY + HOME.y); cam.zoom.to(0);
-    return;
-  }
-  const z = clamp(Math.exp(cam.zoom.target) * (dir === 'in' ? 1.3 : 1 / 1.3), ZOOM.min, ZOOM.max);
-  cam.zoom.to(Math.log(z));
+function pixelRatio() {
+  const cap = getQuality() === 'low' ? 1.25 : 2;
+  return Math.min(window.devicePixelRatio || 1, cap);
 }
 
-function focusRoom(id) {
+function isPortraitPhone() {
+  if (!container) return false;
+  const w = container.clientWidth, h = container.clientHeight;
+  return w > 0 && w <= 760 && h > w;
+}
+
+function distanceFor(width, depth) {
+  const aspect = Math.max(0.3, camera.aspect || 1);
+  const vFov = camera.fov * Math.PI / 180;
+  const hFov = 2 * Math.atan(Math.tan(vFov / 2) * aspect);
+  const distW = (width * 0.55) / Math.tan(hFov / 2);
+  const distD = (depth * 0.55) / Math.tan(vFov / 2) * Math.sin(PITCH);
+  return clamp(Math.max(distW, distD) * 1.18, DIST.min, DIST.max);
+}
+
+function floorY() {
+  return building?.activeOpen()?.root.position.y || building?.activeY || 0;
+}
+
+function aim(x, yOff, z, distance, snap) {
+  const go = snap ? 'snap' : 'to';
+  cam.x[go](x); cam.y[go](yOff); cam.z[go](z);
+  cam.dist[go](clamp(distance, DIST.min, DIST.max));
+}
+
+function frameAll(snap) {
+  const rooms = hallLayout?.rooms || [];
+  if (!rooms.length) { aim(HOME.x, building?.activeY || 0.6, HOME.z, DIST.hall, snap); return; }
+  let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
+  for (const r of rooms) {
+    minX = Math.min(minX, r.x - r.w / 2); maxX = Math.max(maxX, r.x + r.w / 2);
+    minZ = Math.min(minZ, r.z - r.d / 2); maxZ = Math.max(maxZ, r.z + r.d / 2);
+  }
+  aim((minX + maxX) / 2, 0.8, (minZ + maxZ) / 2, distanceFor(maxX - minX + 2.4, maxZ - minZ + 2.4), snap);
+}
+
+function frameDefault(snap) {
+  if (isPortraitPhone()) {
+    const id = lastView?.currentFloor;
+    const room = hallLayout?.rooms?.find((r) => r.id === id) || hallLayout?.rooms?.[0];
+    if (room) focusRoom(room.id, snap);
+    else frameAll(snap);
+  } else frameAll(snap);
+}
+
+export function zoom(dir) {
+  if (!building) return;
+  if (dir === 'reset') { frameDefault(false); return; }
+  const next = cam.dist.target * (dir === 'in' ? 1 / 1.22 : 1.22);
+  cam.dist.to(clamp(next, DIST.min, DIST.max));
+}
+
+function focusRoom(id, snap = false) {
   const room = hallLayout?.rooms?.find((r) => r.id === id);
   if (!room || !building) return;
-  cam.x.to(room.x);
-  cam.z.to(room.z);
-  cam.y.to(building.activeY + 0.4);
-  cam.zoom.to(Math.log(2.15));
+  const dist = isPortraitPhone() ? 13.5 : distanceFor(room.w + 1.4, room.d + 1.4);
+  aim(room.x, 0.9, room.z, dist, snap);
 }
 
 export function focusBot(id) {
   const a = actors.get(id);
   if (!a || !building) return;
-  cam.x.to(a.root.position.x);
-  cam.z.to(a.root.position.z);
-  cam.y.to(building.activeY + 0.6);
-  cam.zoom.to(Math.log(Math.max(Math.exp(cam.zoom.target), ZOOM.focus)));
+  aim(a.root.position.x, 0.9, a.root.position.z, Math.min(cam.dist.target, 8.5), false);
 }
 
 function stepCamera(dt) {
   clampTarget();
-  cam.x.step(dt); cam.y.step(dt); cam.z.step(dt); cam.zoom.step(dt);
-  const z = clamp(Math.exp(cam.zoom.x), ZOOM.min * 0.85, ZOOM.max * 1.1);
-  if (Math.abs(z - camera.zoom) > 1e-5) { camera.zoom = z; camera.updateProjectionMatrix(); }
-  tmp.set(cam.x.x, cam.y.x, cam.z.x);
-  camera.position.copy(tmp).addScaledVector(ISO_DIR, 80);
-  if (!REDUCED && !drag && getQuality() === 'high') {
-    const wobble = Math.sin(nowSec * 0.28) * 0.38;
-    camera.position.x += wobble;
-    camera.position.z -= wobble * 0.6;
-  }
+  cam.x.step(dt); cam.y.step(dt); cam.z.step(dt); cam.dist.step(dt); cam.yaw.step(dt);
+  const yaw = cam.yaw.x;
+  const dist = cam.dist.x;
+  const cp = Math.cos(PITCH), sp = Math.sin(PITCH);
+  const tx = cam.x.x, ty = floorY() + cam.y.x, tz = cam.z.x;
+  camera.position.set(tx + Math.sin(yaw) * cp * dist, ty + sp * dist, tz + Math.cos(yaw) * cp * dist);
+  camera.lookAt(tx, ty, tz);
+  camera.updateMatrixWorld();
+  const hallMesh = building?.activeOpen()?.root.getObjectByName('team-hall');
+  if (hallMesh) hallMesh.traverse((o) => { if (o.userData?.billboard) faceSign(o, camera); });
 }
 
 function clampTarget() {
-  cam.x.target = clamp(cam.x.target, -70, 70);
-  cam.z.target = clamp(cam.z.target, -55, 55);
-  cam.zoom.target = clamp(cam.zoom.target, Math.log(ZOOM.min), Math.log(ZOOM.max));
+  cam.x.target = clamp(cam.x.target, -40, 40);
+  cam.z.target = clamp(cam.z.target, -40, 40);
+  cam.dist.target = clamp(cam.dist.target, DIST.min, DIST.max);
 }
 
 function resize() {
   if (!renderer) return;
   const w = container.clientWidth || 1, h = container.clientHeight || 1;
+  renderer.setPixelRatio(pixelRatio());
   renderer.setSize(w, h, false);
   labels.setSize(w, h);
   post?.setSize(w, h);
-  const aspect = w / h;
-  // phones (the UI's <= 900 px layout) have no side panels to keep clear: the floor fills the width, bots read bigger
-  const spanW = WALLPAPER ? VIEW_SPAN.w : VIEW_SPAN.w + (PHONE_SPAN_W - VIEW_SPAN.w) * (1 - clamp((w - 560) / 340, 0, 1));
-  const halfH = Math.max(VIEW_SPAN.h, spanW / aspect) / 2 * (WALLPAPER ? WALLPAPER_FRAMING : 1);
-  camera.left = -halfH * aspect; camera.right = halfH * aspect;
-  camera.top = halfH; camera.bottom = -halfH;
-  // keep the building clear of the glass panels: shift the view so its centre is the free space between them
-  const shift = WALLPAPER ? 0 : clamp((w - 900) / 600, 0, 1) * (UI_RIGHT - UI_LEFT) / 2;   // wallpaper: no panels, centred
-  if (shift > 0.5) camera.setViewOffset(w, h, shift, 0, w, h); else camera.clearViewOffset();
+  camera.aspect = w / h;
+  camera.clearViewOffset();
+  if (isPortraitPhone()) {
+    const sheet = 0.18;
+    camera.setViewOffset(w, h, 0, h * sheet * 0.45, w, h);
+  }
   camera.updateProjectionMatrix();
+  if (hallLayout && building?.activeOpen()) {
+    const inst = building.activeOpen();
+    const key = `${inst.hallKey || ''}|${isPortraitPhone() ? 'p' : 'd'}`;
+    if (inst.framedKey !== key) { inst.framedKey = key; frameDefault(false); }
+  }
 }
 
 const pxPerMeter = () => renderer.domElement.clientHeight / ((camera.top - camera.bottom) / camera.zoom);
@@ -473,11 +519,11 @@ function onDown(e) {
   touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
   if (touches.size === 2) {
     const [a, b] = [...touches.values()];
-    pinch = { d: Math.hypot(a.x - b.x, a.y - b.y), z: cam.zoom.target };
+    pinch = { d: Math.hypot(a.x - b.x, a.y - b.y), dist: cam.dist.target };
     drag = null;
     return;
   }
-  drag = { id: e.pointerId, x0: e.clientX, y0: e.clientY, lx: e.clientX, ly: e.clientY, lt: performance.now(), panning: false, vx: 0, vz: 0 };
+  drag = { id: e.pointerId, x0: e.clientX, y0: e.clientY, lx: e.clientX, ly: e.clientY, lt: performance.now(), panning: false, swipe: false };
 }
 
 function onMove(e) {
@@ -487,24 +533,20 @@ function onMove(e) {
   if (touches.has(e.pointerId)) touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
   if (pinch && touches.size === 2) {
     const [a, b] = [...touches.values()];
-    cam.zoom.to(pinch.z + Math.log(Math.hypot(a.x - b.x, a.y - b.y) / pinch.d));
+    const span = Math.max(12, Math.hypot(a.x - b.x, a.y - b.y));
+    cam.dist.to(clamp(pinch.dist * (pinch.d / span), DIST.min, DIST.max));
     return;
   }
   if (!drag || drag.id !== e.pointerId) return;
-  if (!drag.panning && Math.hypot(e.clientX - drag.x0, e.clientY - drag.y0) > 5) drag.panning = true;
+  if (!drag.panning && Math.hypot(e.clientX - drag.x0, e.clientY - drag.y0) > 6) drag.panning = true;
   if (!drag.panning) return;
-  const now = performance.now();
   const dx = e.clientX - drag.lx, dy = e.clientY - drag.ly;
-  const dtS = Math.max(0.001, (now - drag.lt) / 1000);
-  drag.lx = e.clientX; drag.ly = e.clientY; drag.lt = now;
-  // screen-space drag -> ground-plane move of the camera target (content follows the pointer 1:1)
-  const ppm = pxPerMeter();
-  const mx = -dx / ppm, mz = dy / ppm / SIN_E;
-  const wx = (mx - mz) / Math.SQRT2, wz = (-mx - mz) / Math.SQRT2;
-  cam.x.snap(clamp(cam.x.x + wx, -9.5, 9.5));
-  cam.z.snap(clamp(cam.z.x + wz, -7.5, 7.5));
-  drag.vx = drag.vx * 0.6 + (wx / dtS) * 0.4;
-  drag.vz = drag.vz * 0.6 + (wz / dtS) * 0.4;
+  drag.lx = e.clientX; drag.ly = e.clientY;
+  const swipe = isPortraitPhone() && Math.abs(e.clientX - drag.x0) > Math.abs(e.clientY - drag.y0) * 1.3;
+  drag.swipe = swipe;
+  if (swipe) return;
+  cam.yaw.snap(cam.yaw.x - dx * 0.006);
+  cam.dist.snap(clamp(cam.dist.x + dy * 0.02, DIST.min, DIST.max));
 }
 
 function onUp(e) {
@@ -513,10 +555,8 @@ function onUp(e) {
   if (!drag || drag.id !== e.pointerId) return;
   const d = drag;
   drag = null;
-  if (d.panning) {                                   // let it glide a little, then settle
-    const vx = clamp(d.vx, -30, 30), vz = clamp(d.vz, -30, 30);
-    cam.x.v = vx; cam.z.v = vz;
-    cam.x.to(cam.x.x + vx * 0.12); cam.z.to(cam.z.x + vz * 0.12);
+  if (d.panning) {
+    if (d.swipe && Math.abs(d.lx - d.x0) > 48) stepRoom(d.lx < d.x0 ? 1 : -1);
     return;
   }
   setPointer(e);
@@ -526,20 +566,20 @@ function onUp(e) {
   callbacks.onSelectBot?.(obj ? obj.userData.actorId : null);
 }
 
+function stepRoom(dir) {
+  const rooms = hallLayout?.rooms || [];
+  if (rooms.length < 2) return;
+  const cur = rooms.findIndex((r) => r.id === lastView?.currentFloor);
+  const i = cur >= 0 ? cur : 0;
+  const next = rooms[(i + dir + rooms.length) % rooms.length];
+  callbacks.onSelectFloor?.(next.id);
+  focusRoom(next.id);
+}
+
 function onWheel(e) {
   e.preventDefault();
-  setPointer(e);
-  const z0 = Math.exp(cam.zoom.target);
-  const z1 = clamp(z0 * Math.exp(-e.deltaY * (e.ctrlKey ? 0.012 : 0.0016)), ZOOM.min, ZOOM.max);
-  if (z1 === z0) return;
-  // keep the ground point under the cursor in place while zooming
-  const shift = camera.view?.enabled ? (camera.view.offsetX / camera.view.fullWidth) * 2 : 0;
-  const nx = pointer.x + shift, ny = pointer.y;
-  const k = 1 / z0 - 1 / z1;
-  const mx = nx * camera.right * k, my = ny * camera.top * k / SIN_E;
-  cam.x.to(cam.x.target + (mx - my) / Math.SQRT2);
-  cam.z.to(cam.z.target + (-mx - my) / Math.SQRT2);
-  cam.zoom.to(Math.log(z1));
+  const next = cam.dist.target * Math.exp(e.deltaY * (e.ctrlKey ? 0.01 : 0.0014));
+  cam.dist.to(clamp(next, DIST.min, DIST.max));
 }
 
 function pickObject() {
@@ -744,6 +784,11 @@ function frame(t) {
     const busy = crew.filter((b) => (b.effective_status || b.status) === 'working').length;
     tickNetwork(REDUCED ? 0 : dt, busy ? 0.62 : 0.2);
     tickPolish(open.obj, daylight?.state?.night || 0);
+    const hallMesh = open.root.getObjectByName('team-hall');
+    if (hallMesh) {
+      hallMesh.updateMatrixWorld(true);
+      hallMesh.traverse((o) => { if (o.userData?.billboard) faceSign(o, camera); });
+    }
     cullLabels(camera, open);
     ensureDust(open.root);
     tickDust(dt);
@@ -769,7 +814,7 @@ function frame(t) {
 
   if (post) {
     focusV.set(0, (building ? building.cabinY.x : 0) + 0.7, 0).project(camera);
-    post.render(clamp(focusV.y * 0.5 + 0.5, 0, 1), dt, clamp(1.5 / camera.zoom, 0.25, 1));
+    post.render(clamp(focusV.y * 0.5 + 0.5, 0, 1), dt, 0);
   } else renderer.render(scene, camera);
   if (!WALLPAPER || WALLPAPER_TAGS) labels.render(scene, camera);
 }

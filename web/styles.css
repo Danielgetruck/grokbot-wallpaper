@@ -153,14 +153,21 @@ html.hq-quiet.hq-show-more .bhq-dock { display: flex !important; }
   display: flex; gap: 8px; align-items: center; pointer-events: auto;
 }
 .hq-floors, .hq-tool {
-  background: rgba(18, 12, 28, .78); color: #F4EEFF;
-  border: 1px solid rgba(196, 170, 255, .35); border-radius: 999px;
-  font: 650 12px/1 var(--font); backdrop-filter: blur(16px);
+  background: rgba(18, 12, 28, .88); color: #F4EEFF;
+  border: 1px solid rgba(196, 170, 255, .45); border-radius: 999px;
+  font-family: var(--font); font-size: 13px; font-weight: 650; line-height: 1.2;
+  backdrop-filter: blur(16px);
 }
-.hq-floors { display: flex; padding: 3px; gap: 2px; }
+.hq-floors { display: flex; padding: 3px; gap: 2px; max-width: min(70vw, 520px); overflow-x: auto; }
 .hq-floors button, .hq-tool {
-  border: 0; background: transparent; color: inherit; cursor: pointer;
-  padding: 6px 10px; border-radius: 999px; font: inherit;
+  border: 0; background: transparent; color: #F4EEFF; cursor: pointer;
+  padding: 7px 12px; border-radius: 999px;
+  font-family: inherit; font-size: 13px; font-weight: 650; line-height: 1.2;
+  white-space: nowrap;
+}
+.hq-floors button { max-width: 168px; overflow: hidden; text-overflow: ellipsis; }
+@media (max-width: 760px) {
+  .hq-tools { top: 58px; left: 8px; right: 8px; justify-content: flex-end; }
 }
 .hq-floors button[aria-current="true"] { background: #F4EEFF; color: #1B1028; }
 .hq-tool { border: 1px solid rgba(196, 170, 255, .35); background: rgba(18, 12, 28, .78); }

@@ -115,9 +115,11 @@ export function renderHud(state, view) {
     floors.forEach((f, i) => {
       const b = el('button');
       b.type = 'button';
-      b.textContent = String(i + 1);
-      b.title = f.name || '';
-      b.setAttribute('aria-label', f.name || `Floor ${i + 1}`);
+      const label = String(f.name || `Room ${i + 1}`);
+      b.textContent = label.length > 18 ? `${label.slice(0, 17)}…` : label;
+      b.title = label;
+      b.setAttribute('aria-label', label);
+      b.dir = 'auto';
       if (view && f.id === view.currentFloor) b.setAttribute('aria-current', 'true');
       b.addEventListener('click', () => onFloor(f.id));
       floorPill.append(b);
