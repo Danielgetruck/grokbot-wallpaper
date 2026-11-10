@@ -59,6 +59,13 @@ function select(id) {
 
 function setFloor(id, keepSelection = false) {
   if (!state?.floors.some((f) => f.id === id)) return;
+  if (window.bothq?.hall && window.bothq.focusRoom) {
+    view.currentFloor = id;
+    if (!keepSelection) view.selectedBot = null;
+    window.bothq.focusRoom(id);
+    render();
+    return;
+  }
   if (id !== view.currentFloor) {                        // the elevator's chime rings higher on higher floors
     const order = [...state.floors].sort((a, b) => (a.order ?? 0) - (b.order ?? 0)).findIndex((f) => f.id === id);
     sfx.floor(order);
@@ -157,33 +164,38 @@ function startModDemo() {
   banner.className = 'hq-demo';
   banner.textContent = 'Demo · fake data, not the live feed';
   document.body.append(banner);
-  const floor = 'mod-ops';
-  const other = 'other';
-  const names = ['MoD', 'MoD2', 'MoD3', 'MoD5', 'MoD6', 'MoD7', 'Mod5', 'Uk', 'Daily', 'EMAIL'];
+  const groups = [
+    ['MoD ותפעול', ['MoD', 'MoD2', 'MoD3', 'MoD5', 'MoD6', 'MoD7']],
+    ['Logistic Care', ['Lane', 'Porter', 'Cargo', 'Route']],
+    ['עוזרים אישיים', ['Noa', 'Amit', 'Yael', 'Dana']],
+    ['QA ותמיכה', ['QA1', 'QA2', 'QA3', 'QA4', 'QA5']],
+    ['פרויקטים', ['Atlas', 'Nimbus', 'Harbor', 'Field']],
+  ];
   const bots = {};
-  names.forEach((name, i) => {
-    const id = name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
-    const status = i === 0 || i === 2 || i === 4 ? 'working' : i === 6 ? 'waiting_user' : 'idle';
-    bots[id] = {
-      id, name, floor: i < 8 ? floor : other, desk: (i % 20) + 1,
-      status, effective_status: status,
-      step: status === 'working' ? 'demo: checking the queue' : status === 'waiting_user' ? 'demo: need a look' : '',
-      since: new Date(Date.now() - i * 60000).toISOString(),
-      last_event: new Date().toISOString(), color: '#C4B5FD', look: null, history: [],
-    };
+  const floors = groups.map(([name, members], gi) => {
+    const id = `g${gi}`;
+    members.forEach((name2, i) => {
+      const bid = `${id}-${i}`;
+      const status = (gi + i) % 5 === 0 ? 'working' : (gi === 0 && i === 3) ? 'waiting_user' : 'idle';
+      bots[bid] = {
+        id: bid, name: name2, floor: id, desk: i + 1,
+        status, effective_status: status,
+        step: status === 'working' ? 'demo: checking the queue' : status === 'waiting_user' ? 'demo: need a look' : '',
+        since: new Date(Date.now() - (gi * 5 + i) * 60000).toISOString(),
+        last_event: new Date().toISOString(), color: '#C4B5FD', look: null, history: [],
+      };
+    });
+    return { id, name, order: gi + 1, bots: members.map((_, i) => `${id}-${i}`) };
   });
   state = {
     demo: true, demoLocal: true, now: new Date().toISOString(), version: 1,
-    floors: [
-      { id: floor, name: 'MoD ותפעול', order: 1, bots: names.slice(0, 8).map((n) => n.toLowerCase()) },
-      { id: other, name: 'Other', order: 2, bots: ['email'] },
-    ],
-    bots, feed: [{ t: new Date().toISOString(), bot: 'mod', name: 'MoD', status: 'working', step: 'demo: checking the queue' }],
-    ticker: [], summary: {}, routines: [{ bot: 'mod2', name: 'MoD2', routine: 'demo sweep', schedule: 'hourly', next_run: null }],
+    floors, bots,
+    feed: [{ t: new Date().toISOString(), bot: 'g0-0', name: 'MoD', status: 'working', step: 'demo: checking the queue' }],
+    ticker: [], summary: {}, routines: [],
   };
   render();
   demoTimer = setInterval(() => {
-    const list = Object.values(state.bots).filter((b) => b.floor === floor);
+    const list = Object.values(state.bots);
     const b = list[Math.floor(Math.random() * list.length)];
     const next = b.effective_status === 'working' ? 'idle' : 'working';
     b.status = b.effective_status = next;

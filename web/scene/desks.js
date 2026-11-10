@@ -30,7 +30,7 @@ export function installPrivateDesks(root, spots) {
   };
   const mat = {
     top: lit(0x6b4a32, 0.62, 0.04),          // oiled wood
-    glow: lit(0x5b21b6, 0.4, 0.18, 0xc4b5fd, 0.9),
+    glow: lit(0x5b21b6, 0.35, 0.1, 0xe9d5ff, 2.4),
     leg: lit(0x1a1c22, 0.28, 0.82),          // brushed metal
     chair: lit(0x3a3158, 0.9, 0.0),          // matte fabric
     laptop: lit(0x2a2e36, 0.32, 0.7),

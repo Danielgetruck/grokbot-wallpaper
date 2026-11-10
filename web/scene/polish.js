@@ -4,6 +4,7 @@ import { REDUCED } from './spring.js';
 
 const KEY = 'bothq.quality';
 let level = 'high';
+let softGpu = false;
 let dust = null, dustN = 0;
 
 export function initQuality(renderer) {
@@ -19,10 +20,12 @@ export function initQuality(renderer) {
     const name = gl.getParameter(gl.RENDERER) || '';
     soft = /SwiftShader|llvmpipe|Software/i.test(name);
   } catch { /* ignore */ }
-  level = soft ? 'low' : 'high';
+  softGpu = soft;
+  level = 'high';
   return level;
 }
 export function getQuality() { return level; }
+export function isSoftGpu() { return softGpu; }
 export function toggleQuality() {
   level = level === 'high' ? 'low' : 'high';
   try { localStorage.setItem(KEY, level); } catch { /* private mode */ }
@@ -85,8 +88,15 @@ export function installDecor(root) {
   const sign = new THREE.Mesh(new THREE.PlaneGeometry(1.8, 0.45), new THREE.MeshBasicMaterial({ map: signTexture(), transparent: true, side: THREE.DoubleSide }));
   sign.position.set(-7.55, 2.15, -1.2);
   sign.rotation.y = Math.PI / 2;
+  sign.material = new THREE.MeshBasicMaterial({ map: sign.material.map, transparent: true, depthWrite: false, side: THREE.DoubleSide });
+  sign.scale.set(2.4, 2.2, 1);
   sign.name = 'daniel-hq-sign';
-  root.add(sign);
+  const plate = new THREE.Mesh(new THREE.PlaneGeometry(1.95, 0.58), new THREE.MeshBasicMaterial({ color: 0x14081c, side: THREE.DoubleSide }));
+  plate.position.set(sign.position.x - 0.06, sign.position.y, sign.position.z);
+  plate.rotation.y = sign.rotation.y;
+  plate.scale.copy(sign.scale);
+  plate.name = 'daniel-hq-plate';
+  root.add(plate, sign);
 
   [40, 200].forEach((hue, i) => {
     const p = new THREE.Mesh(new THREE.PlaneGeometry(0.55, 0.78), new THREE.MeshBasicMaterial({ map: posterTexture(hue) }));
@@ -171,7 +181,7 @@ export function tickPolish(root, night) {
   root.traverse((o) => {
     if (!o.material) return;
     if (o.userData.dayShaft) o.material.opacity = 0.012 * day;
-    if (o.userData.nightStrip) o.material.opacity = 0.55 * n;
+    if (o.userData.nightStrip) o.material.opacity = 0.9;
     if (o.userData.skyline) o.material.opacity = 0.9 * n;
   });
 }

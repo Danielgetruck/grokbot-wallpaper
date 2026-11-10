@@ -78,7 +78,7 @@ export function createPost(renderer, scene, camera) {
   bokeh.enabled = false;
   composer.addPass(bokeh);
   // High threshold so the purple backdrop stays quiet and only lamps, screens and neon bloom.
-  const bloom = new UnrealBloomPass(new THREE.Vector2(size.x, size.y), 0.28, 0.35, 0.92);
+  const bloom = new UnrealBloomPass(new THREE.Vector2(size.x, size.y), 0.42, 0.4, 0.72);
   bloom.enabled = false;
   composer.addPass(bloom);
 

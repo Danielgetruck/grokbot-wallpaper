@@ -16,15 +16,16 @@ import { Spring, clamp, REDUCED } from './spring.js';
 import { sofiaHour, fontsPromise } from './walls.js';
 import { applyDesks, tick as tickLife, ensureCat, petCat, sendMail, addressedTo, cullLabels } from './life.js';
 import { syncTeam, tickTeam, blockedDesk } from './modteam.js';
-import { spawnBeam, spawnTrail, tickPackets } from './packets.js';
-import { initQuality, getQuality, tickPolish, ensureDust, tickDust, syncRug, accentFor } from './polish.js';
+import { spawnBeam, spawnTrail, tickPackets, setNetwork, tickNetwork } from './packets.js';
+import { useHall, layoutHall, buildHall } from './rooms.js';
+import { initQuality, getQuality, isSoftGpu, tickPolish, ensureDust, tickDust, syncRug, accentFor } from './polish.js';
 
 // Relative to the page (not the site root), so the office also works when it is published in a sub-folder, e.g.
 // https://bodila51.github.io/grokbot-wallpaper/office/ -> ../assets. Locally the page is at `/`, where this is /assets.
 const ASSETS = '../assets';
 const ISO_DIR = new THREE.Vector3(1, 1, 1).normalize();
 const HOME = { x: -0.4, y: -0.3, z: 0.3 };             // camera target relative to the active floor's surface
-const VIEW_SPAN = { w: 48, h: 32 };                 // widened floor, framed so the room fills the window
+const VIEW_SPAN = { w: 118, h: 78 };                // the hall, framed whole
 const PHONE_SPAN_W = 29.5;                          // m across a phone's scene box: the floor + shaft fill ~90 % of the screen
 const ZOOM = { min: 0.75, max: 3, focus: 2 };
 const UI_LEFT = 230, UI_RIGHT = 360;                   // glass panels the building must not hide behind
@@ -35,6 +36,7 @@ const DESK_ORDER = [1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 2, 4, 6, 8, 10, 12, 14, 1
 
 let renderer, labels, camera, scene, container, callbacks, daylight, building, post;
 let assets = null;
+let hallLayout = null;
 let lastState = null, lastView = { currentFloor: null, selectedBot: null };
 const actors = new Map();
 const retiring = new Set();
@@ -173,24 +175,53 @@ export function renderScene(state, view) {
 function sync() {
   const state = lastState, view = lastView;
   const floors = [...state.floors].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
-  building.setFloors(floors);
+  const hall = useHall(floors);
+  window.bothq = Object.assign(window.bothq || {}, { hall, focusRoom });
   let want = view.currentFloor && floors.some((f) => f.id === view.currentFloor) ? view.currentFloor : (floors[0]?.id ?? '_');
   if (TEST.floor && floors.some((f) => f.id === TEST.floor)) want = TEST.from && !introDone && floors.some((f) => f.id === TEST.from) ? TEST.from : TEST.floor;
-  if (building.activeId !== want) switchFloor(want, !introDone);
+  if (hall) {
+    building.setFloors([{ id: '_hall', name: 'Hall', order: 1 }]);
+    if (building.activeId !== '_hall' || !building.activeOpen()) switchFloor('_hall', !introDone);
+  } else {
+    building.setFloors(floors);
+    if (building.activeId !== want) switchFloor(want, !introDone);
+  }
   introDone = true;
 
   const inst = building.activeOpen();
   if (!inst) return;
-  const floorBots = Object.values(state.bots).filter((b) => b.floor === building.activeId);
+  const floorBots = hall ? Object.values(state.bots) : Object.values(state.bots).filter((b) => b.floor === building.activeId);
   const ids = new Set(floorBots.map((b) => b.id));
 
   for (const [id, actor] of actors) if (!ids.has(id)) { actor.retire(); retiring.add(actor); actors.delete(id); }
 
-  const floor = floors.find((f) => f.id === building.activeId);
-  const team = syncTeam(inst, floor, floorBots, assets.spots.desks);
+  const floor = hall ? { id: '_hall', name: 'Hall' } : floors.find((f) => f.id === building.activeId);
+  let hallPlan = null;
+  if (hall) {
+    const key = floors.map((f) => `${f.id}:${floorBots.filter((b) => b.floor === f.id).length}`).join('|');
+    if (inst.hallKey !== key) {
+      inst.hallKey = key;
+      hallPlan = layoutHall(floors, floorBots);
+      buildHall(inst.root, hallPlan);
+      inst.hallPlan = hallPlan;
+      inst.obj.traverse((o) => {
+        if (/^station_/.test(o.name)) o.visible = false;
+        if (/^(armchair_|bar_stools_|coffee_|poufs_|sofa_|table_[12]_|laptops_|pendants_|task_board|wall_screen|wall_frames_)/.test(o.name)) o.visible = false;
+      });
+      const sheen = inst.obj.getObjectByName('floor-sheen');
+      if (sheen) sheen.visible = false;
+      for (const o of [...pickables]) if (o.userData?.roomId) pickables.delete(o);
+      inst.root.getObjectByName('team-hall')?.traverse((o) => { if (o.userData?.roomId && o.isMesh) pickables.add(o); });
+    } else hallPlan = inst.hallPlan;
+    hallLayout = hallPlan;
+    setNetwork(inst.root, hallPlan?.links || []);
+  }
+  const team = hall ? null : syncTeam(inst, floor, floorBots, assets.spots.desks);
   syncRug(inst, accentFor(floor?.name || floor?.id, !!team));
+  const rug = inst.root.getObjectByName('team-rug');
+  if (rug) rug.visible = !hall;
   const maxShare = Math.max(0.0001, ...floorBots.map((b) => b.usage_share || 0));
-  const lounge = assignLounge(floorBots);
+  const lounge = hall ? new Map() : assignLounge(floorBots);
   const flags = new Array(20).fill(0);
   const desks = new Array(20).fill(null);
   const delay = Math.max(0, switchedAt + 0.55 - nowSec);
@@ -216,10 +247,11 @@ function sync() {
       attachModel(actor, bot);
     }
     actor.ctx.now = nowSec;
-    const family = team && team.has(bot.id);
+    const family = !hall && team && team.has(bot.id);
+    const seated = hall && hallPlan?.spots.get(bot.id);
     const prefer = (DESK_ORDER[(bot.desk || 1) - 1] || 1) - 1;
-    const deskIdx = family ? -1 : claim(prefer);
-    const spot = family ? team.get(bot.id) : (assets.spots.desks[deskIdx] || assets.spots.desks[0]);
+    const deskIdx = family || seated ? -1 : claim(prefer);
+    const spot = seated || (family ? team.get(bot.id) : (assets.spots.desks[deskIdx] || assets.spots.desks[0]));
     const status = bot.effective_status || bot.status;
     if (status === 'working' && !lounge.has(bot.id) && deskIdx >= 0) flags[deskIdx] = 1;
     const prevStep = actor.bot?.step;
@@ -358,6 +390,15 @@ export function zoom(dir) {
   cam.zoom.to(Math.log(z));
 }
 
+function focusRoom(id) {
+  const room = hallLayout?.rooms?.find((r) => r.id === id);
+  if (!room || !building) return;
+  cam.x.to(room.x);
+  cam.z.to(room.z);
+  cam.y.to(building.activeY + 0.4);
+  cam.zoom.to(Math.log(2.15));
+}
+
 export function focusBot(id) {
   const a = actors.get(id);
   if (!a || !building) return;
@@ -382,8 +423,8 @@ function stepCamera(dt) {
 }
 
 function clampTarget() {
-  cam.x.target = clamp(cam.x.target, -16, 16);
-  cam.z.target = clamp(cam.z.target, -14, 14);
+  cam.x.target = clamp(cam.x.target, -70, 70);
+  cam.z.target = clamp(cam.z.target, -55, 55);
   cam.zoom.target = clamp(cam.zoom.target, Math.log(ZOOM.min), Math.log(ZOOM.max));
 }
 
@@ -481,6 +522,7 @@ function onUp(e) {
   setPointer(e);
   const obj = pickObject();
   if (obj?.userData.cat) { petCat(); return; }
+  if (obj?.userData.roomId) { focusRoom(obj.userData.roomId); return; }
   callbacks.onSelectBot?.(obj ? obj.userData.actorId : null);
 }
 
@@ -698,13 +740,16 @@ function frame(t) {
       }
     }
     tickPackets(dt, REDUCED || getQuality() === 'low');
+    const crew = lastState ? Object.values(lastState.bots).filter((b) => !open.hallPlan || true) : [];
+    const busy = crew.filter((b) => (b.effective_status || b.status) === 'working').length;
+    tickNetwork(REDUCED ? 0 : dt, busy ? 0.62 : 0.2);
     tickPolish(open.obj, daylight?.state?.night || 0);
     cullLabels(camera, open);
     ensureDust(open.root);
     tickDust(dt);
   }
-  const hi = getQuality() === 'high' && !REDUCED;
-  if (post?.setBloom) post.setBloom(hi);
+  const hi = getQuality() === 'high' && !REDUCED && !isSoftGpu();
+  if (post?.setBloom) post.setBloom(getQuality() !== 'low');
   if (post?.setAo) post.setAo(hi);
   if (post?.setDof) {
     const sel = lastView.selectedBot && actors.get(lastView.selectedBot);
