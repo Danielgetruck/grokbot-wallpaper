@@ -149,7 +149,7 @@ export function setNetwork(parent, pairs) {
   flows = [];
   const glow = new THREE.MeshBasicMaterial({ color: 0xc084fc, transparent: true, opacity: 0.28, blending: THREE.AdditiveBlending, depthWrite: false });
   const core = new THREE.MeshBasicMaterial({ color: 0xe9d5ff, transparent: true, opacity: 0.55, blending: THREE.AdditiveBlending, depthWrite: false });
-  for (const p of pairs.slice(0, 28)) {
+  for (const p of pairs.slice(0, 64)) {
     const a = p.a.clone(); a.y = 0.4;
     const b = p.b.clone(); b.y = 0.4;
     const curve = arcCurve(a, b, p.lift || 1.35, p.via);

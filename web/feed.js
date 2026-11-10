@@ -20,8 +20,8 @@
 // On top of the server's state the office gets state.finished (done lines of the last 24 h, newest first),
 // state.routines (every bot's routines, soonest first) and state.check (the latest status check: who has answered), for
 // the «Finished», «Routines» and «Status check» panels.
-import { StateStore, botIdFor } from './lib/state.js?v=7';
-import { FEED_BASE, feedFromLink } from './lib/feedbase.js?v=7';
+import { StateStore, botIdFor } from './lib/state.js?v=8';
+import { FEED_BASE, feedFromLink } from './lib/feedbase.js?v=8';
 
 const RELAY = 'https://relay.0xcodila.com', NTFY = 'https://ntfy.sh';
 const MAX_LINE = 4096, KEEP = 600, TICK_MS = 30e3, DAY_MS = 24 * 3600e3, PING_MS = 60e3;
@@ -42,7 +42,8 @@ export function feedFromHash(hash, search = '') {
 export async function connectFeed({ topic, servers }, onState) {
   const sources = servers.map((server) => ({ server, tag: server.startsWith(RELAY) ? 'relay' : 'ntfy', base: `${server}/${encodeURIComponent(topic)}`, lastId: null }));
   const usual = servers.length > 1;                      // the plain link: both mailboxes, one cache
-  const cacheKey = usual ? `bothq.feed.${topic}` : `bothq.feed.${servers[0]}.${topic}`;
+  const cacheKey = usual ? `bothq.feed.v8.${topic}` : `bothq.feed.v8.${servers[0]}.${topic}`;
+  try { localStorage.removeItem('bothq.floor'); } catch { /* private mode */ }
   const oldKey = `bothq.feed.${NTFY}.${topic}`;         // the cache of the first single-mailbox office (ntfy.sh only)
   const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'Europe/Sofia';
   const store = new StateStore({ tz, quietIdleMs: QUIET_MS, hasAvatar: (id) => HANDMADE.has(id) });   // no GLB probe: every bot is generated from its look
@@ -144,13 +145,7 @@ export async function connectFeed({ topic, servers }, onState) {
       store.setBotsConfig(cfg);
       return true;
     }
-    if (isMap(rec.groups)) {                             // {"groups":{"Bot A":"Content"}}: the main bot's teams = floors
-      for (const [name, team] of Object.entries(rec.groups).slice(0, 400)) {
-        if (typeof team === 'string' && team.trim()) (cfg[name] ||= {}).floor = team.trim().slice(0, 40);
-      }
-      store.setBotsConfig(cfg);
-      return true;
-    }
+    if (isMap(rec.groups)) return true;                  // one office: team tags never become separate floors
     if (isMap(rec.chat)) {                               // only app deep links and web pages (the store refuses scripts)
       for (const [name, url] of Object.entries(rec.chat).slice(0, 400)) {
         const chat = safeChatUrl(url);

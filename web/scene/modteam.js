@@ -1,14 +1,15 @@
 // The MoD floor: one lead desk in the aisle, family bots in an arc facing it, and the talk between them.
 import * as THREE from 'three';
 import { CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
-import { REDUCED } from './spring.js?v=7';
-import { spawnArc, spawnRipple, setStaticLinks } from './packets.js?v=7';
+import { REDUCED } from './spring.js?v=8';
+import { spawnArc, spawnRipple, setStaticLinks } from './packets.js?v=8';
 
 const LEAD = new THREE.Vector3(2.4, 0.42, -1.2);
-const FAMILY = /^(MoD|Mod)/;
+const FAMILY = /^mod/i;
 
-export function isLeadName(name) { return name === 'MoD'; }
-export function isFamilyName(name) { return FAMILY.test(String(name || '')); }
+export function isLeadName(name) { return /^mod$/i.test(String(name || '').trim()); }
+export function isFamilyName(name) { return FAMILY.test(String(name || '').trim()); }
+export function isMasterName(name) { return /^master$/i.test(String(name || '').trim()); }
 
 export function isModFloor(floor, bots) {
   const label = `${floor?.name || ''} ${floor?.id || ''}`;
