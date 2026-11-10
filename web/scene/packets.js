@@ -147,13 +147,13 @@ export function setNetwork(parent, pairs) {
   netGroup = new THREE.Group();
   netGroup.name = 'fx-network';
   flows = [];
-  const glow = new THREE.MeshBasicMaterial({ color: 0xc084fc, transparent: true, opacity: 0.55, blending: THREE.AdditiveBlending, depthWrite: false });
-  const core = new THREE.MeshBasicMaterial({ color: 0xe0f8ff, transparent: true, opacity: 0.95, blending: THREE.AdditiveBlending, depthWrite: false });
+  const glow = new THREE.MeshBasicMaterial({ color: 0xc084fc, transparent: true, opacity: 0.28, blending: THREE.AdditiveBlending, depthWrite: false });
+  const core = new THREE.MeshBasicMaterial({ color: 0xe9d5ff, transparent: true, opacity: 0.55, blending: THREE.AdditiveBlending, depthWrite: false });
   for (const p of pairs.slice(0, 28)) {
     const a = p.a.clone(); a.y = 0.4;
     const b = p.b.clone(); b.y = 0.4;
     const curve = arcCurve(a, b, p.lift || 1.35, p.via);
-    const thick = p.wide ? 0.34 : 0.16;
+    const thick = p.wide ? 0.07 : 0.035;
     netGroup.add(new THREE.Mesh(new THREE.TubeGeometry(curve, 18, thick, 5, false), glow));
     netGroup.add(new THREE.Mesh(new THREE.TubeGeometry(curve, 18, thick * 0.38, 5, false), core));
     flows.push({ curve, k: Math.random(), color: p.wide ? 0xf5d0fe : 0x67e8f9 });

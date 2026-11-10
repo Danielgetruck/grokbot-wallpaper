@@ -98,15 +98,16 @@ export class Actor {
   // ---------- model ----------
 
   setPlaceholderModel(color) {
-    const body = new THREE.Mesh(new THREE.SphereGeometry(0.46, 40, 28), jelly(color));
-    body.scale.set(1, 0.95, 0.82);
-    body.position.y = 0.44;
-    const eyeGeo = new THREE.CapsuleGeometry(0.042, 0.085, 6, 12);
-    const eyeMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.25, emissive: 0xffffff, emissiveIntensity: 0.15 });
-    const eyeL = new THREE.Mesh(eyeGeo, eyeMat); eyeL.position.set(-0.12, 0.52, 0.36);
-    const eyeR = new THREE.Mesh(eyeGeo, eyeMat); eyeR.position.set(0.12, 0.52, 0.36);
+    const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.18, 0.28, 6, 12), jelly(color));
+    body.position.y = 0.46;
+    const head = new THREE.Mesh(new THREE.SphereGeometry(0.16, 20, 16), jelly(color));
+    head.position.y = 0.82;
+    const eyeGeo = new THREE.SphereGeometry(0.035, 10, 8);
+    const eyeMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.25, emissive: 0xffffff, emissiveIntensity: 0.2 });
+    const eyeL = new THREE.Mesh(eyeGeo, eyeMat); eyeL.position.set(-0.06, 0.84, 0.13);
+    const eyeR = new THREE.Mesh(eyeGeo, eyeMat); eyeR.position.set(0.06, 0.84, 0.13);
     const g = new THREE.Group();
-    g.add(body, eyeL, eyeR);
+    g.add(body, head, eyeL, eyeR);
     this.modelScale = 1;
     this.useModel(g, [eyeL, eyeR], true);
   }
@@ -202,7 +203,7 @@ export class Actor {
     const s = this.status, bot = this.bot;
     if (!bot) return;
     const attn = s === 'waiting_user' || s === 'error' || s === 'stuck';
-    const mode = this.selected ? 'sel' : attn ? 'attn' : this.hovered ? 'hover' : 'off';
+    const mode = this.selected ? 'sel' : attn ? 'attn' : (this.hovered || this.ctx.names) ? 'hover' : 'off';
     let text = bot.name || '';
     if (mode === 'attn') {
       const reason = reasonText(s, bot.step);

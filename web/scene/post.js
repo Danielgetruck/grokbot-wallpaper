@@ -10,6 +10,7 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { GTAOPass } from 'three/addons/postprocessing/GTAOPass.js';
 import { BokehPass } from 'three/addons/postprocessing/BokehPass.js';
 import { StudioPass } from './studio.js';
+import { FXAAShader } from 'three/addons/shaders/FXAAShader.js';
 
 const TiltShiftShader = {
   name: 'BotHQTiltShift',
@@ -43,7 +44,7 @@ const TiltShiftShader = {
 };
 
 export function tiltShiftEnabled() {
-  return new URLSearchParams(location.search).get('tiltshift') !== '0';
+  return new URLSearchParams(location.search).get('tiltshift') === '1';
 }
 
 export function createPost(renderer, scene, camera) {
@@ -73,14 +74,16 @@ export function createPost(renderer, scene, camera) {
   composer.addPass(studio);
   // After the studio backdrop, so only bright lamps and neon bloom. Off on the low quality setting.
   const bokeh = new BokehPass(scene, camera, { focus: 20, aperture: 0.00012, maxblur: 0.006 });
-  bokeh.materialBokeh.defines.PERSPECTIVE_CAMERA = 0;
+  bokeh.materialBokeh.defines.PERSPECTIVE_CAMERA = 1;
   bokeh.materialBokeh.needsUpdate = true;
   bokeh.enabled = false;
   composer.addPass(bokeh);
   // High threshold so the purple backdrop stays quiet and only lamps, screens and neon bloom.
-  const bloom = new UnrealBloomPass(new THREE.Vector2(size.x, size.y), 0.42, 0.4, 0.72);
+  const bloom = new UnrealBloomPass(new THREE.Vector2(size.x, size.y), 0.38, 0.35, 0.78);
   bloom.enabled = false;
   composer.addPass(bloom);
+  const fxaa = new ShaderPass(FXAAShader);
+  composer.addPass(fxaa);
 
   const api = {
     composer,
@@ -90,6 +93,7 @@ export function createPost(renderer, scene, camera) {
       const pxW = w * renderer.getPixelRatio(), pxH = hgt * renderer.getPixelRatio();
       h.uniforms.dir.value.set(1 / pxW, 0);
       v.uniforms.dir.value.set(0, 1 / pxH);
+      fxaa.material.uniforms.resolution.value.set(1 / pxW, 1 / pxH);
       this.base = 1.05 * renderer.getPixelRatio();
       h.uniforms.strength.value = v.uniforms.strength.value = this.base;
     },
