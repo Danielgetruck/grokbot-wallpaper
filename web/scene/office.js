@@ -76,7 +76,8 @@ function finish(templates, spots, nightMaps, source) {
 
 // The shell grows to twice the width and depth (4x the floor area). Stations stay human-sized and
 // move onto a wide grid with aisles. Lounge furniture rides out with the shell.
-const ROOM_SCALE = 2;
+const ROOM_SCALE = 6;
+const ROOM_HEIGHT = 2.35;
 function widenFloor(root, spots) {
   for (let i = 0; i < 20; i++) {
     const nn = String(i + 1).padStart(2, '0');
@@ -93,14 +94,14 @@ function widenFloor(root, spots) {
     });
     for (const o of parts) if (o.parent === root) g.attach(o);
   }
-  root.scale.set(ROOM_SCALE, 1, ROOM_SCALE);
+  root.scale.set(ROOM_SCALE, ROOM_HEIGHT, ROOM_SCALE);
   const grid = wideGrid();
   for (let i = 0; i < 20; i++) {
     const nn = String(i + 1).padStart(2, '0');
     const g = root.getObjectByName(`station_${nn}`);
     const seat = grid[i];
     if (!g || !seat || !spots.desks[i]) continue;
-    g.scale.set(1 / ROOM_SCALE, 1, 1 / ROOM_SCALE);
+    g.scale.set(1 / ROOM_SCALE, 1 / ROOM_HEIGHT, 1 / ROOM_SCALE);
     g.position.set(seat.x / ROOM_SCALE, 0, seat.z / ROOM_SCALE);
     spots.desks[i].pos.set(seat.x, spots.desks[i].pos.y, seat.z);
     spots.desks[i].yaw = seat.yaw;
@@ -110,8 +111,8 @@ function widenFloor(root, spots) {
 }
 
 function wideGrid() {
-  const xs = [-14, -10.4, -6.8, -3.2];
-  const zs = [-8.2, -4.6, -1, 2.6, 6.2];
+  const xs = [-30, -18, -6, 6];
+  const zs = [-24, -12, 0, 12, 24];
   const seats = [];
   for (const x of xs) for (const z of zs) seats.push({ x, z, yaw: 0 });
   return seats;

@@ -17,7 +17,7 @@ import { Pass, FullScreenQuad } from 'three/addons/postprocessing/Pass.js';
 export const STUDIO = {
   centre: [0.48, 0.42],                                   // where the violet pools (fraction of the frame, y down)
   radii: [0.86, 0.8],                                     // ellipse the fall-off reaches its edge colour at
-  stops: [[0, '#3B1764'], [0.46, '#1A0C2E'], [1, '#090612']],
+  stops: [[0, '#5B21B6'], [0.42, '#2A1058'], [1, '#070412']],
   shadow: '#14081C',                                      // deep plum, never a flat grey
   layers: [                                               // sigma (px), push down (px), strength at the silhouette edge
     { sigma: 4, down: 2, w: 0.40 },                       // contact: a thin dark seam that grounds the edge

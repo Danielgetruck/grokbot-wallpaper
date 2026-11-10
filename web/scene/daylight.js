@@ -152,7 +152,7 @@ const LAMP_INTENSITY = 22;                                // the spot lights on 
 const LAMP_POOL = 4.0;                                    // the same lamps on the baked floor (sunpatch.js)
 const LAMP_ANGLE = 0.78;                                  // rad, half the cone of a pendant's shade
 const LAMP_PENUMBRA = 0.75;
-const ROOM = { x: 16.6, z: 12.6, y0: -0.05, y1: 3.0 };    // widened floor: shadow camera covers the whole shell
+const ROOM = { x: 52, z: 40, y0: -0.05, y1: 8 };          // hall: the shadow camera covers every room
 const COARSE = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
 const isLit = (m) => m.isMeshStandardMaterial || m.isMeshLambertMaterial || m.isMeshPhongMaterial || m.isMeshToonMaterial;
 const NO_SHADOW = /^(slab|glass)/;                        // the floor slab sits under the floor; glass lets the sun through

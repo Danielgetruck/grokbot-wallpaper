@@ -109,11 +109,80 @@ export function setStaticLinks(parent, pairs) {
   const attr = lines.geometry.attributes.position;
   let n = 0;
   for (const p of pairs.slice(0, 24)) {
-    linePos[n++] = p.a.x; linePos[n++] = 0.08; linePos[n++] = p.a.z;
-    linePos[n++] = p.b.x; linePos[n++] = 0.08; linePos[n++] = p.b.z;
+    linePos[n++] = p.a.x; linePos[n++] = 0.35; linePos[n++] = p.a.z;
+    linePos[n++] = p.b.x; linePos[n++] = 0.35; linePos[n++] = p.b.z;
   }
   attr.needsUpdate = true;
   lines.geometry.setDrawRange(0, n / 3);
+  lines.material.color.set(0xd8b4fe);
+  lines.material.opacity = 0.9;
+}
+
+let netGroup = null, netKey = '', flows = [];
+
+function arcCurve(a, b, lift, via) {
+  const stops = [a];
+  for (const v of via || []) stops.push(new THREE.Vector3(v.x, 0.45, v.z));
+  stops.push(b);
+  const pts = [];
+  const n = 8 * (stops.length - 1);
+  for (let i = 0; i <= n; i++) {
+    const t = i / n;
+    const seg = Math.min(stops.length - 2, Math.floor(t * (stops.length - 1)));
+    const u = t * (stops.length - 1) - seg;
+    const p = new THREE.Vector3().lerpVectors(stops[seg], stops[seg + 1], u);
+    p.y = 0.55 + Math.sin(u * Math.PI) * lift;
+    pts.push(p);
+  }
+  return new THREE.CatmullRomCurve3(pts);
+}
+
+/** Always-on neon links. Rebuilt only when the set of endpoints changes. */
+export function setNetwork(parent, pairs) {
+  ensureFx(parent);
+  const key = pairs.map((p) => `${p.a.x.toFixed(1)},${p.a.z.toFixed(1)}>${p.b.x.toFixed(1)},${p.b.z.toFixed(1)}:${p.lift || 0}:${(p.via || []).map((v) => `${v.x.toFixed(1)},${v.z.toFixed(1)}`).join(';')}`).join('|');
+  if (key === netKey && netGroup?.parent === parent) return;
+  netKey = key;
+  if (netGroup) { netGroup.removeFromParent(); netGroup.traverse((o) => { if (o.geometry) o.geometry.dispose(); }); }
+  netGroup = new THREE.Group();
+  netGroup.name = 'fx-network';
+  flows = [];
+  const glow = new THREE.MeshBasicMaterial({ color: 0xc084fc, transparent: true, opacity: 0.55, blending: THREE.AdditiveBlending, depthWrite: false });
+  const core = new THREE.MeshBasicMaterial({ color: 0xe0f8ff, transparent: true, opacity: 0.95, blending: THREE.AdditiveBlending, depthWrite: false });
+  for (const p of pairs.slice(0, 28)) {
+    const a = p.a.clone(); a.y = 0.4;
+    const b = p.b.clone(); b.y = 0.4;
+    const curve = arcCurve(a, b, p.lift || 1.35, p.via);
+    const thick = p.wide ? 0.34 : 0.16;
+    netGroup.add(new THREE.Mesh(new THREE.TubeGeometry(curve, 18, thick, 5, false), glow));
+    netGroup.add(new THREE.Mesh(new THREE.TubeGeometry(curve, 18, thick * 0.38, 5, false), core));
+    flows.push({ curve, k: Math.random(), color: p.wide ? 0xf5d0fe : 0x67e8f9 });
+  }
+  parent.add(netGroup);
+}
+
+export function tickNetwork(dt, speed) {
+  if (!mesh || !flows.length) return;
+  const step = Math.max(0.08, speed);
+  flows.forEach((f, i) => {
+    if (i >= MAX) return;
+    f.k = (f.k + dt * step) % 1;
+    const p = f.curve.getPoint(f.k);
+    dummy.position.copy(p);
+    dummy.scale.setScalar(3.4);
+    dummy.updateMatrix();
+    mesh.setMatrixAt(i, dummy.matrix);
+    mesh.setColorAt(i, new THREE.Color(f.color));
+    slots[i].alive = true;
+  });
+  for (let i = flows.length; i < MAX; i++) {
+    if (!slots[i].alive) continue;
+    dummy.scale.set(0, 0, 0);
+    dummy.updateMatrix();
+    mesh.setMatrixAt(i, dummy.matrix);
+  }
+  mesh.instanceMatrix.needsUpdate = true;
+  if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
 }
 
 export function tickPackets(dt, reduced) {
