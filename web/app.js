@@ -17,6 +17,7 @@ let demoTimer = null;
 const params = new URLSearchParams(location.search);
 const WALLPAPER = params.get('mode') === 'wallpaper';
 if (WALLPAPER) document.documentElement.classList.add('wallpaper');
+document.documentElement.classList.add('hq-quiet');
 
 try {
   ui = await import(WALLPAPER ? './wallpaper.js' : './ui/ui.js');
@@ -35,7 +36,7 @@ ui.initUI({
   onZoom: (dir) => { zoom(dir); sfx.zoom(dir); },
   onOpenChat: (id, url) => { if (url) location.href = url; },
 });
-if (!WALLPAPER) initHud({ onFocus: (id) => select(id) });
+if (!WALLPAPER) initHud({ onFocus: (id) => select(id), onFloor: (id) => setFloor(id) });
 
 // music and sound effects (not on the wallpaper): the speaker button sits in the top bar's right group
 if (!WALLPAPER) initSound({ slot: document.querySelector('#topbar .bhq-right') });
@@ -98,7 +99,7 @@ function render() {
   if (view.selectedBot && !state.bots[view.selectedBot]) view.selectedBot = null;
   renderScene(state, view);
   ui.renderUI(state, view);
-  if (!WALLPAPER) renderHud(state);
+  if (!WALLPAPER) renderHud(state, view);
   if (!WALLPAPER) soundStatusChanges();
 }
 
@@ -137,8 +138,10 @@ async function poll() {
 
 // ---------- the user's own bots: #<topic> ----------
 
+const DEMO = params.get('demo') === '1';
 const { feedFromLink } = await import('./lib/feedbase.js');
-if (feedFromLink(location)) {                              // #<topic>, #<topic>@<host>, ?feed=<host>#<topic>
+if (DEMO) startModDemo();
+else if (feedFromLink(location)) {                              // #<topic>, #<topic>@<host>, ?feed=<host>#<topic>
   const { feedFromHash, connectFeed } = await import('./feed.js');
   connectFeed(feedFromHash(location.hash, location.search), (data) => { state = data; render(); });
   addEventListener('hashchange', () => location.reload());   // another channel: start over
@@ -147,6 +150,51 @@ if (feedFromLink(location)) {                              // #<topic>, #<topic>
 }
 
 // ---------- static preview: local simulation ----------
+
+function startModDemo() {
+  document.documentElement.dataset.demo = '1';
+  const banner = document.createElement('div');
+  banner.className = 'hq-demo';
+  banner.textContent = 'Demo · fake data, not the live feed';
+  document.body.append(banner);
+  const floor = 'mod-ops';
+  const other = 'other';
+  const names = ['MoD', 'MoD2', 'MoD3', 'MoD5', 'MoD6', 'MoD7', 'Mod5', 'Uk', 'Daily', 'EMAIL'];
+  const bots = {};
+  names.forEach((name, i) => {
+    const id = name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+    const status = i === 0 || i === 2 || i === 4 ? 'working' : i === 6 ? 'waiting_user' : 'idle';
+    bots[id] = {
+      id, name, floor: i < 8 ? floor : other, desk: (i % 20) + 1,
+      status, effective_status: status,
+      step: status === 'working' ? 'demo: checking the queue' : status === 'waiting_user' ? 'demo: need a look' : '',
+      since: new Date(Date.now() - i * 60000).toISOString(),
+      last_event: new Date().toISOString(), color: '#C4B5FD', look: null, history: [],
+    };
+  });
+  state = {
+    demo: true, demoLocal: true, now: new Date().toISOString(), version: 1,
+    floors: [
+      { id: floor, name: 'MoD ותפעול', order: 1, bots: names.slice(0, 8).map((n) => n.toLowerCase()) },
+      { id: other, name: 'Other', order: 2, bots: ['email'] },
+    ],
+    bots, feed: [{ t: new Date().toISOString(), bot: 'mod', name: 'MoD', status: 'working', step: 'demo: checking the queue' }],
+    ticker: [], summary: {}, routines: [{ bot: 'mod2', name: 'MoD2', routine: 'demo sweep', schedule: 'hourly', next_run: null }],
+  };
+  render();
+  demoTimer = setInterval(() => {
+    const list = Object.values(state.bots).filter((b) => b.floor === floor);
+    const b = list[Math.floor(Math.random() * list.length)];
+    const next = b.effective_status === 'working' ? 'idle' : 'working';
+    b.status = b.effective_status = next;
+    b.step = next === 'working' ? 'demo: passing a note to MoD' : '';
+    b.since = new Date().toISOString();
+    state.feed.unshift({ t: b.since, bot: b.id, name: b.name, status: next, step: b.step });
+    state.feed = state.feed.slice(0, 12);
+    state.now = b.since;
+    render();
+  }, 2200);
+}
 
 async function startLocalDemo() {
   const res = await fetch('./data/demo-state.json', { cache: 'no-store' });

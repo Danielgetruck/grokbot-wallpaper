@@ -3,6 +3,7 @@
 import * as THREE from 'three';
 import { CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
 import { REDUCED } from './spring.js';
+import { spawnRipple } from './packets.js';
 
 const LIGHT = {
   working: { hex: 0xb7dcff, em: 2.1 },
@@ -116,11 +117,13 @@ export function applyDesks(inst, desks) {
     const status = bot?.status || '';
     const key = bot ? `${status}|${bot.step || ''}|${bot.name || ''}|${bot.routine || ''}` : '';
     if (d.plate && d.label) {
+      const loud = status === 'working' || status === 'waiting_user' || status === 'error';
       d.plate.visible = !!bot?.name;
-      d.label.el.hidden = !bot?.name;
+      d.label.el.hidden = !loud;
+      d.priority = status === 'waiting_user' || status === 'error' ? 3 : status === 'working' ? 2 : 0;
       if (bot?.name && key !== d.key) {
         d.label.name.textContent = clip(bot.name, 22);
-        d.label.sub.textContent = status === 'idle' && bot.routine ? clip(bot.routine, 28) : '';
+        d.label.sub.textContent = '';
       }
     }
     if (d.screenCv && key !== d.key) drawScreen(d.screenCv, status === 'working' ? 'work' : 'ambient', bot?.step);
@@ -141,6 +144,27 @@ export function applyDesks(inst, desks) {
       d.screenPulse = false;
     }
   });
+}
+
+/** Drop lower-priority labels that would sit on top of each other in screen space. */
+export function cullLabels(camera, inst) {
+  const life = inst?.life;
+  if (!life || !camera) return;
+  const shown = [];
+  const v = new THREE.Vector3();
+  for (const d of life.desks) {
+    const el = d.label?.el;
+    if (!el || el.hidden || !d.plate) continue;
+    d.plate.getWorldPosition(v).project(camera);
+    shown.push({ el, x: v.x, y: v.y, pri: d.priority || 0 });
+  }
+  shown.sort((a, b) => b.pri - a.pri);
+  const kept = [];
+  for (const p of shown) {
+    const hit = kept.some((k) => Math.hypot(k.x - p.x, k.y - p.y) < 0.11);
+    p.el.style.opacity = hit ? '0' : '1';
+    if (!hit) kept.push(p);
+  }
 }
 
 export function tick(inst, dt, t) {
@@ -204,7 +228,12 @@ function tickMail(dt) {
     e.m.position.lerpVectors(e.from, e.to, k);
     e.m.position.y = 1.05 + Math.sin(k * Math.PI) * 0.85;
     e.m.rotation.y += dt * 3;
-    if (k >= 1) { e.m.removeFromParent(); e.m.material.dispose(); mail.splice(i, 1); }
+    if (k >= 1) {
+      spawnRipple(e.m.parent, e.to);
+      e.m.removeFromParent();
+      e.m.material.dispose();
+      mail.splice(i, 1);
+    }
   }
 }
 

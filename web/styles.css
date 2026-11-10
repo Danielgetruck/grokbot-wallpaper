@@ -132,7 +132,46 @@
 .hq-ticker-track { display: flex; gap: 22px; white-space: nowrap; width: max-content; animation: hq-tick 36s linear infinite; }
 .hq-ticker b { font-weight: 700; color: #fff; margin-right: .35em; }
 @keyframes hq-tick { from { transform: translateX(0); } to { transform: translateX(-50%); } }
-html.wallpaper .hq-wait, html.wallpaper .hq-ticker { display: none; }
+html.wallpaper .hq-wait, html.wallpaper .hq-ticker, html.wallpaper .hq-demo, html.wallpaper .hq-tools { display: none; }
+
+/* Quiet chrome: the office fills the screen. Panels open only from the tool row. */
+html.hq-quiet .hq-wait,
+html.hq-quiet #floors,
+html.hq-quiet #panel,
+html.hq-quiet #feed,
+html.hq-quiet .bhq-dock,
+html.hq-quiet .hq-ticker { display: none !important; }
+html.hq-quiet .bhq-schip:not([data-s="working"]):not([data-s="waiting_user"]) { display: none; }
+html.hq-quiet .bhq-usage, html.hq-quiet .bhq-share { display: none !important; }
+html.hq-quiet.hq-show-team #panel { display: flex !important; }
+html.hq-quiet.hq-show-needs .bhq-dock { display: flex !important; }
+html.hq-quiet.hq-show-more #floors,
+html.hq-quiet.hq-show-more #feed,
+html.hq-quiet.hq-show-more .bhq-dock { display: flex !important; }
+.hq-tools {
+  position: fixed; z-index: 25; top: 22px; right: 16px;
+  display: flex; gap: 8px; align-items: center; pointer-events: auto;
+}
+.hq-floors, .hq-tool {
+  background: rgba(18, 12, 28, .78); color: #F4EEFF;
+  border: 1px solid rgba(196, 170, 255, .35); border-radius: 999px;
+  font: 650 12px/1 var(--font); backdrop-filter: blur(16px);
+}
+.hq-floors { display: flex; padding: 3px; gap: 2px; }
+.hq-floors button, .hq-tool {
+  border: 0; background: transparent; color: inherit; cursor: pointer;
+  padding: 6px 10px; border-radius: 999px; font: inherit;
+}
+.hq-floors button[aria-current="true"] { background: #F4EEFF; color: #1B1028; }
+.hq-tool { border: 1px solid rgba(196, 170, 255, .35); background: rgba(18, 12, 28, .78); }
+.hq-tool[aria-pressed="true"] { background: #F4EEFF; color: #1B1028; }
+.hq-ticker { opacity: .72; }
+.hq-demo {
+  position: fixed; z-index: 30; top: 8px; left: 50%; transform: translateX(-50%);
+  padding: 4px 10px; border-radius: 999px; pointer-events: none;
+  background: #FF9F0A; color: #1D1D1F; font: 800 12px/1.2 var(--font); letter-spacing: .02em;
+}
+.bhq-surface { border: 1px solid rgba(196, 170, 255, .28); }
 
 /* Solid panels when the OS asks for less transparency. */
 @media (prefers-reduced-transparency: reduce) {

@@ -305,7 +305,7 @@ export class Actor {
     if (!REDUCED) {
       const breathe = Math.sin(t * 2.1 + this.phase);
       sy = 1 + 0.018 * breathe; sx = 1 - 0.012 * breathe;
-      if (s === 'working') { y = 0.012 * Math.abs(Math.sin(t * 9 + this.phase)); rx = 0.06; }
+      if (s === 'working') { y = 0.02 * Math.abs(Math.sin(t * 11 + this.phase)); rx = 0.14 + 0.05 * Math.sin(t * 14 + this.phase); }
       if (s === 'stuck') rz = 0.09 * Math.sin(t * 1.3 + this.phase);
       if (s === 'error') {
         const k = (t + this.phase) % 1.6;

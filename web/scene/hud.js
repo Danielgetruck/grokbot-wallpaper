@@ -1,11 +1,13 @@
 // Waiting list, feed ticker, tab title, and the two optional sounds. Every string from the feed
 // goes through textContent. Chime and typing are off until the visitor turns them on.
+import { getQuality, toggleQuality } from './polish.js';
+
 const CHIME_KEY = 'bothq.chime';
 const TYPE_KEY = 'bothq.typing';
 const BASE_TITLE = document.title || 'Grok Bot Dashboard';
 
 let onFocus = () => {};
-let root, list, ticker, chimeBtn, typeBtn;
+let root, list, ticker, chimeBtn, typeBtn, qualBtn;
 let prevWait = null;
 let audio = null, typing = null;
 
@@ -22,9 +24,13 @@ function el(tag, cls) {
   return n;
 }
 
-export function initHud({ onFocus: focus } = {}) {
+let onFloor = () => {};
+let tools, floorPill, needsBtn, teamBtn, menuBtn;
+
+export function initHud({ onFocus: focus, onFloor: floor } = {}) {
   if (root) return;
   onFocus = focus || onFocus;
+  onFloor = floor || onFloor;
   root = el('aside', 'hq-wait');
   root.setAttribute('aria-label', 'Bots waiting for you');
   const head = el('div', 'hq-wait-head');
@@ -36,18 +42,47 @@ export function initHud({ onFocus: focus } = {}) {
   typeBtn.type = 'button';
   chimeBtn.textContent = 'Chime';
   typeBtn.textContent = 'Typing';
+  qualBtn = el('button', 'hq-wait-tog');
+  qualBtn.type = 'button';
+  qualBtn.title = 'High draws bloom and dust. Low keeps the office lighter on a weak GPU.';
+  qualBtn.addEventListener('click', () => { toggleQuality(); paintQuality(); });
   chimeBtn.title = 'Chime when a bot starts waiting. Off until you turn it on.';
   typeBtn.title = 'Soft typing while someone is working. Off until you turn it on.';
-  head.append(title, chimeBtn, typeBtn);
+  head.append(title, chimeBtn, typeBtn, qualBtn);
+  paintQuality();
   list = el('ol', 'hq-wait-list');
   root.append(head, list);
   ticker = el('div', 'hq-ticker');
   ticker.setAttribute('aria-live', 'polite');
-  document.body.append(root, ticker);
+  tools = el('div', 'hq-tools');
+  floorPill = el('div', 'hq-floors');
+  floorPill.setAttribute('role', 'tablist');
+  needsBtn = el('button', 'hq-tool');
+  needsBtn.type = 'button';
+  needsBtn.hidden = true;
+  needsBtn.addEventListener('click', () => document.documentElement.classList.toggle('hq-show-needs'));
+  teamBtn = el('button', 'hq-tool');
+  teamBtn.type = 'button';
+  teamBtn.textContent = 'Team';
+  teamBtn.addEventListener('click', () => {
+    const on = document.documentElement.classList.toggle('hq-show-team');
+    teamBtn.setAttribute('aria-pressed', on ? 'true' : 'false');
+  });
+  menuBtn = el('button', 'hq-tool');
+  menuBtn.type = 'button';
+  menuBtn.textContent = 'Menu';
+  menuBtn.addEventListener('click', () => {
+    const on = document.documentElement.classList.toggle('hq-show-more');
+    menuBtn.setAttribute('aria-pressed', on ? 'true' : 'false');
+  });
+  tools.append(floorPill, needsBtn, teamBtn, menuBtn);
+  document.body.append(tools, root, ticker);
   paintToggles();
   chimeBtn.addEventListener('click', () => { setPref(CHIME_KEY, !pref(CHIME_KEY)); paintToggles(); if (pref(CHIME_KEY)) unlock(); });
   typeBtn.addEventListener('click', () => { setPref(TYPE_KEY, !pref(TYPE_KEY)); paintToggles(); if (pref(TYPE_KEY)) unlock(); });
 }
+
+function paintQuality() { if (qualBtn) qualBtn.textContent = getQuality() === 'high' ? 'High' : 'Low'; }
 
 function paintToggles() {
   const c = pref(CHIME_KEY), t = pref(TYPE_KEY);
@@ -63,13 +98,31 @@ function unlock() {
   return audio;
 }
 
-export function renderHud(state) {
+export function renderHud(state, view) {
   if (!state) return;
   const bots = Object.values(state.bots || {});
   const waiting = bots
     .filter((b) => (b.effective_status || b.status) === 'waiting_user')
     .sort((a, b) => (Date.parse(a.since) || 0) - (Date.parse(b.since) || 0) || String(a.name).localeCompare(String(b.name)));
   document.title = waiting.length ? `(${waiting.length}) waiting` : BASE_TITLE;
+  if (needsBtn) {
+    needsBtn.hidden = waiting.length === 0;
+    needsBtn.textContent = waiting.length === 1 ? '1 needs you' : `${waiting.length} need you`;
+  }
+  if (floorPill && state.floors) {
+    floorPill.replaceChildren();
+    const floors = [...state.floors].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+    floors.forEach((f, i) => {
+      const b = el('button');
+      b.type = 'button';
+      b.textContent = String(i + 1);
+      b.title = f.name || '';
+      b.setAttribute('aria-label', f.name || `Floor ${i + 1}`);
+      if (view && f.id === view.currentFloor) b.setAttribute('aria-current', 'true');
+      b.addEventListener('click', () => onFloor(f.id));
+      floorPill.append(b);
+    });
+  }
   if (!root) return;
   root.hidden = waiting.length === 0;
   list.replaceChildren();
@@ -101,7 +154,7 @@ export function renderHud(state) {
 function renderTicker(state) {
   const rows = [];
   for (const f of state.feed || []) rows.push({ t: Date.parse(f.t) || 0, name: f.name || f.bot || '', text: [label(f.status), f.step].filter(Boolean).join(' · ') });
-  for (const t of state.ticker || []) rows.push({ t: Date.parse(t.t) || 0, name: t.name || '', text: t.text || '' });
+  for (const t of state.ticker || []) if (t.kind !== 'chat') rows.push({ t: Date.parse(t.t) || 0, name: t.name || '', text: t.text || '' });
   rows.sort((a, b) => b.t - a.t);
   ticker.replaceChildren();
   const track = el('div', 'hq-ticker-track');
@@ -116,6 +169,7 @@ function renderTicker(state) {
   }
   const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
   if (!reduce && slice.length) for (const n of [...track.children]) track.append(n.cloneNode(true));
+  ticker.hidden = slice.length === 0;
   ticker.append(track);
 }
 

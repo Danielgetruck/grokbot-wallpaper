@@ -5,6 +5,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { buildFloorStyles } from './floorstyle.js';
 import { installPrivateDesks } from './desks.js';
+import { installDecor } from './polish.js';
 
 export const DESK_COUNT = 20;
 export const LOUNGE_COUNT = 6;
@@ -66,7 +67,54 @@ function finish(templates, spots, nightMaps, source) {
   recolorShell(templates);
   try { installPrivateDesks(templates.floor_open, spots); }
   catch (err) { console.warn('[office] private desks skipped:', err.message); }
+  try { installDecor(templates.floor_open); }
+  catch (err) { console.warn('[office] decor skipped:', err.message); }
+  try { widenFloor(templates.floor_open, spots); }
+  catch (err) { console.warn('[office] room widen skipped:', err.message); }
   return { templates, spots, nightMaps, source, style };
+}
+
+// The shell grows to twice the width and depth (4x the floor area). Stations stay human-sized and
+// move onto a wide grid with aisles. Lounge furniture rides out with the shell.
+const ROOM_SCALE = 2;
+function widenFloor(root, spots) {
+  for (let i = 0; i < 20; i++) {
+    const nn = String(i + 1).padStart(2, '0');
+    const desk = spots.desks[i];
+    if (!desk) continue;
+    const g = new THREE.Group();
+    g.name = `station_${nn}`;
+    g.position.set(desk.pos.x, 0, desk.pos.z);
+    root.add(g);
+    const parts = [];
+    root.traverse((o) => {
+      if (!o.name || o === g) return;
+      if (o.name.endsWith(`_${nn}`) || o.name === `table_${nn}`) parts.push(o);
+    });
+    for (const o of parts) if (o.parent === root) g.attach(o);
+  }
+  root.scale.set(ROOM_SCALE, 1, ROOM_SCALE);
+  const grid = wideGrid();
+  for (let i = 0; i < 20; i++) {
+    const nn = String(i + 1).padStart(2, '0');
+    const g = root.getObjectByName(`station_${nn}`);
+    const seat = grid[i];
+    if (!g || !seat || !spots.desks[i]) continue;
+    g.scale.set(1 / ROOM_SCALE, 1, 1 / ROOM_SCALE);
+    g.position.set(seat.x / ROOM_SCALE, 0, seat.z / ROOM_SCALE);
+    spots.desks[i].pos.set(seat.x, spots.desks[i].pos.y, seat.z);
+    spots.desks[i].yaw = seat.yaw;
+  }
+  const grow = (p) => { if (p?.pos) p.pos.x *= ROOM_SCALE, p.pos.z *= ROOM_SCALE; else if (p?.isVector3) { p.x *= ROOM_SCALE; p.z *= ROOM_SCALE; } };
+  for (const list of [spots.lounges, spots.screens, spots.lamps]) for (const s of list || []) grow(s);
+}
+
+function wideGrid() {
+  const xs = [-14, -10.4, -6.8, -3.2];
+  const zs = [-8.2, -4.6, -1, 2.6, 6.2];
+  const seats = [];
+  for (const x of xs) for (const z of zs) seats.push({ x, z, yaw: 0 });
+  return seats;
 }
 
 // The cutaway shell (solid wall, slab edge) is a plain PBR colour, not a lightmap. Shift it into the same
@@ -79,8 +127,8 @@ function recolorShell(templates) {
       if (!o.isMesh) return;
       for (const m of [].concat(o.material)) {
         if (!m || m.userData.roomTinted) continue;
-        if (m.name === 'wall_white') { m.color.copy(wall); m.userData.roomTinted = true; }
-        else if (m.name === 'slab_white') { m.color.copy(slab); m.userData.roomTinted = true; }
+        if (m.name === 'wall_white') { m.color.copy(wall); m.roughness = 0.94; m.metalness = 0; m.userData.roomTinted = true; }
+        else if (m.name === 'slab_white') { m.color.copy(slab); m.roughness = 0.55; m.metalness = 0.08; m.userData.roomTinted = true; }
       }
     });
   }
