@@ -5,20 +5,20 @@ import { CSS2DRenderer } from 'three/addons/renderers/CSS2DRenderer.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
-import { loadOfficeAssets } from './office.js?v=10';
-import { Building } from './building.js?v=10';
-import { createDaylight } from './daylight.js?v=10';
-import { createPost } from './post.js?v=10';
-import { studioCss } from './studio.js?v=10';
-import { Actor } from './actor.js?v=10';
-import { generateBlob } from './blobgen.js?v=10';
-import { Spring, clamp, REDUCED } from './spring.js?v=10';
-import { sofiaHour, fontsPromise } from './walls.js?v=10';
-import { applyDesks, tick as tickLife, ensureCat, petCat, sendMail, addressedTo, cullLabels } from './life.js?v=10';
-import { syncTeam, tickTeam, blockedDesk } from './modteam.js?v=10';
-import { spawnBeam, spawnTrail, tickPackets, setNetwork, tickNetwork } from './packets.js?v=10';
-import { useHall, layoutHall, buildHall, faceSign, tickFloor } from './rooms.js?v=10';
-import { initQuality, getQuality, isSoftGpu, tickPolish, ensureDust, tickDust, syncRug, accentFor } from './polish.js?v=10';
+import { loadOfficeAssets } from './office.js?v=11';
+import { Building } from './building.js?v=11';
+import { createDaylight } from './daylight.js?v=11';
+import { createPost } from './post.js?v=11';
+import { studioCss } from './studio.js?v=11';
+import { Actor } from './actor.js?v=11';
+import { generateBlob } from './blobgen.js?v=11';
+import { Spring, clamp, REDUCED } from './spring.js?v=11';
+import { sofiaHour, fontsPromise } from './walls.js?v=11';
+import { applyDesks, tick as tickLife, ensureCat, petCat, sendMail, addressedTo, cullLabels } from './life.js?v=11';
+import { syncTeam, tickTeam, blockedDesk } from './modteam.js?v=11';
+import { spawnBeam, spawnTrail, tickPackets, setNetwork, tickNetwork, setFlowPace } from './packets.js?v=11';
+import { useHall, layoutHall, buildHall, faceSign, tickFloor } from './rooms.js?v=11';
+import { initQuality, getQuality, isSoftGpu, tickPolish, ensureDust, tickDust, syncRug, accentFor } from './polish.js?v=11';
 
 // Relative to the page (not the site root), so the office also works when it is published in a sub-folder, e.g.
 // https://bodila51.github.io/grokbot-wallpaper/office/ -> ../assets. Locally the page is at `/`, where this is /assets.
@@ -776,9 +776,15 @@ function frame(t) {
       }
     }
     tickPackets(dt, REDUCED || getQuality() === 'low');
-    const crew = lastState ? Object.values(lastState.bots).filter((b) => !open.hallPlan || true) : [];
-    const busy = crew.filter((b) => (b.effective_status || b.status) === 'working').length;
-    tickNetwork(REDUCED ? 0 : dt, busy ? 0.62 : 0.2);
+    const pace = new Map();
+    if (lastState) {
+      for (const b of Object.values(lastState.bots)) {
+        const s = b.effective_status || b.status;
+        pace.set(b.id, s === 'working' || s === 'active' || s === 'busy');
+      }
+    }
+    setFlowPace(pace);
+    tickNetwork(REDUCED ? 0 : dt);
     tickPolish(open.obj, daylight?.state?.night || 0);
     tickFloor(nowSec);
     const hallMesh = open.root.getObjectByName('team-hall');

@@ -47,7 +47,12 @@ export function createWorker({ color, lead = false } = {}) {
   const eyeR = new THREE.Mesh(eyeGeo, eyeMat); eyeR.name = 'eye_R'; eyeR.position.set(0.045, 0.02, 0.11);
   const visor = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.02, 0.01), shirt);
   visor.position.set(0, 0.02, 0.125);
-  headPivot.add(head, hair, eyeL, eyeR, visor);
+  const beacon = new THREE.Mesh(
+    new THREE.SphereGeometry(0.2, 14, 12),
+    new THREE.MeshStandardMaterial({ color: 0xef4444, emissive: 0xef4444, emissiveIntensity: 0.9, roughness: 0.4 }),
+  );
+  beacon.position.set(0, 0.46, 0);
+  headPivot.add(head, hair, eyeL, eyeR, visor, beacon);
 
   for (const x of [-0.09, 0.09]) {
     const thigh = new THREE.Mesh(thighGeo, pantsMat);
@@ -93,5 +98,5 @@ export function createWorker({ color, lead = false } = {}) {
     glow = badge;
   }
 
-  return { group: g, eyes: [eyeL, eyeR], head: headPivot, armL, armR, glow };
+  return { group: g, eyes: [eyeL, eyeR], head: headPivot, armL, armR, glow, beacon };
 }

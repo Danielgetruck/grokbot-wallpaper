@@ -2,7 +2,7 @@
 // One InstancedMesh, a fixed ripple pool, and static lines when motion is reduced.
 import * as THREE from 'three';
 
-const MAX = 40;
+const MAX = 64;
 const RINGS = 6;
 const slots = [];
 let mesh = null, dummy = new THREE.Object3D(), parentOf = null;
@@ -156,20 +156,29 @@ export function setNetwork(parent, pairs) {
     const thick = p.wide ? 0.07 : 0.035;
     netGroup.add(new THREE.Mesh(new THREE.TubeGeometry(curve, 18, thick, 5, false), glow));
     netGroup.add(new THREE.Mesh(new THREE.TubeGeometry(curve, 18, thick * 0.38, 5, false), core));
-    flows.push({ curve, k: Math.random(), color: p.wide ? 0xf5d0fe : 0x67e8f9 });
+    flows.push({ curve, k: Math.random(), id: p.id || '', speed: 0.22, color: 0x7c3aed, scale: 2.4 });
   }
   parent.add(netGroup);
 }
 
-export function tickNetwork(dt, speed) {
+/** Per-link pace. Working bots send faster, brighter pulses toward Master. */
+export function setFlowPace(pace) {
+  for (const f of flows) {
+    const on = !!(pace && pace.get(f.id));
+    f.speed = on ? 0.9 : 0.18;
+    f.color = on ? 0xd8b4fe : 0x6d28d9;
+    f.scale = on ? 4.6 : 2.3;
+  }
+}
+
+export function tickNetwork(dt) {
   if (!mesh || !flows.length) return;
-  const step = Math.max(0.08, speed);
   flows.forEach((f, i) => {
     if (i >= MAX) return;
-    f.k = (f.k + dt * step) % 1;
+    f.k = (f.k + dt * (f.speed || 0.2)) % 1;
     const p = f.curve.getPoint(f.k);
     dummy.position.copy(p);
-    dummy.scale.setScalar(3.4);
+    dummy.scale.setScalar(f.scale || 2.4);
     dummy.updateMatrix();
     mesh.setMatrixAt(i, dummy.matrix);
     mesh.setColorAt(i, new THREE.Color(f.color));
