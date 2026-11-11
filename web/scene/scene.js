@@ -5,23 +5,23 @@ import { CSS2DRenderer } from 'three/addons/renderers/CSS2DRenderer.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
-import { loadOfficeAssets } from './office.js?v=17';
-import { Building } from './building.js?v=17';
-import { createDaylight } from './daylight.js?v=17';
-import { createPost } from './post.js?v=17';
-import { studioCss } from './studio.js?v=17';
-import { Actor } from './actor.js?v=17';
-import { generateBlob } from './blobgen.js?v=17';
-import { Spring, clamp, REDUCED } from './spring.js?v=17';
-import { sofiaHour, fontsPromise } from './walls.js?v=17';
-import { applyDesks, tick as tickLife, ensureCat, petCat, sendMail, addressedTo, cullLabels } from './life.js?v=17';
-import { syncTeam, tickTeam, blockedDesk } from './modteam.js?v=17';
-import { spawnBeam, spawnTrail, tickPackets, setNetwork, tickNetwork, setFlowPace } from './packets.js?v=17';
-import { useHall, layoutHall, buildHall, faceSign, tickFloor } from './rooms.js?v=17';
-import { initQuality, getQuality, isSoftGpu, renderTier, noteFrame, onQualityChange, tickPolish, ensureDust, tickDust, syncRug, accentFor } from './polish.js?v=17';
-import { setMaxAnisotropy } from './tex.js?v=17';
-import { installCity } from './city.js?v=17';
-import { isWorking, RECENT_MS } from '../lib/live.js?v=17';
+import { loadOfficeAssets } from './office.js?v=18';
+import { Building } from './building.js?v=18';
+import { createDaylight } from './daylight.js?v=18';
+import { createPost } from './post.js?v=18';
+import { studioCss } from './studio.js?v=18';
+import { Actor } from './actor.js?v=18';
+import { generateBlob } from './blobgen.js?v=18';
+import { Spring, clamp, REDUCED } from './spring.js?v=18';
+import { sofiaHour, fontsPromise } from './walls.js?v=18';
+import { applyDesks, tick as tickLife, ensureCat, petCat, sendMail, addressedTo, cullLabels } from './life.js?v=18';
+import { syncTeam, tickTeam, blockedDesk } from './modteam.js?v=18';
+import { spawnTrail, tickPackets, setNetwork, tickNetwork, setFlowPace } from './packets.js?v=18';
+import { useHall, layoutHall, buildHall, faceSign, tickFloor } from './rooms.js?v=18';
+import { initQuality, getQuality, isSoftGpu, renderTier, noteFrame, onQualityChange, tickPolish, ensureDust, tickDust, syncRug, accentFor } from './polish.js?v=18';
+import { setMaxAnisotropy } from './tex.js?v=18';
+import { installCity } from './city.js?v=18';
+import { isWorking, RECENT_MS } from '../lib/live.js?v=18';
 
 // Relative to the page (not the site root), so the office also works when it is published in a sub-folder, e.g.
 // https://bodila51.github.io/grokbot-wallpaper/office/ -> ../assets. Locally the page is at `/`, where this is /assets.
@@ -779,15 +779,6 @@ function frame(t) {
     tickLife(open, dt, nowSec);
     const talked = lastState ? tickTeam(open, Object.values(lastState.bots).filter((b) => b.floor === building.activeId), dt, nowSec) : null;
     if (talked) actors.get(talked.speaker.id)?.speak(talked.step, 1.6, nowSec);
-    if (!REDUCED && getQuality() === 'high' && lastState) {
-      for (const b of Object.values(lastState.bots)) {
-        if (b.floor !== building.activeId || (b.effective_status || b.status) !== 'working') continue;
-        if (Math.random() < dt * 0.45) {
-          const a = actors.get(b.id);
-          if (a) spawnBeam(open.root, a.root.position);
-        }
-      }
-    }
     tickPackets(dt, REDUCED || getQuality() === 'low');
     const pace = new Map();
     if (lastState) {

@@ -25,7 +25,7 @@
  * back when the window grows. ?sheet=open starts with the sheet expanded (for screenshots).
  */
 
-import { isWorking, isWaiting } from '../lib/live.js?v=17';
+import { isWorking, isWaiting } from '../lib/live.js?v=18';
 
 // Resolved against this file, so it works from /web/index.html, from a server rooted at web/, and from the harness.
 const THUMB_BASE = new URL('../../assets/blobs/thumbs/', import.meta.url).href;
@@ -518,7 +518,7 @@ function buildTopbar(root) {
   const demo = h('span', { class: 'bhq-demo bhq-surface', text: 'DEMO', hidden: true, title: 'Demo data, not real bots' });
   // share an image of the office (web/share/, loaded on first use); audio/sound.js puts the speaker in front of it
   const share = h('button', { class: 'bhq-share bhq-surface', type: 'button', 'aria-label': 'Share an image of your office', title: 'Share', 'aria-haspopup': 'dialog', 'aria-expanded': 'false' }, svg(ICON.share));
-  const loadShare = () => import('../share/share.js?v=17');
+  const loadShare = () => import('../share/share.js?v=18');
   share.addEventListener('pointerenter', loadShare, { once: true });
   share.addEventListener('click', () => {
     loadShare().then((m) => m.toggleShare({ anchor: share, state: U.last.state }), (err) => console.warn('[ui] share', err));

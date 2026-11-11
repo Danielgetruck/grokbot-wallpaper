@@ -9,8 +9,8 @@
 //   phone (coarse pointer + Web Share with files): Share… (the system sheet, straight to the X app), Download
 //   desktop: Copy image (image/png), Download, Post on X (copies the image, then opens the X composer: just paste)
 // Esc, a click outside or the button again close it.
-import { captureScene } from '../scene/scene.js?v=17';
-import { sfx } from '../audio/sound.js?v=17';
+import { captureScene } from '../scene/scene.js?v=18';
+import { sfx } from '../audio/sound.js?v=18';
 
 const W = 1600, H = 900;
 const SUPERSAMPLE = 1.5;                               // desktop only: phones render at 1x (GPU memory)

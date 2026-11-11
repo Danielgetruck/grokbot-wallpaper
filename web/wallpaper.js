@@ -9,7 +9,7 @@
  * Style lives in web/styles.css under "wallpaper mode". All data goes in through textContent.
  */
 
-import { isWaiting, isWorking } from './lib/live.js?v=17';
+import { isWaiting, isWorking } from './lib/live.js?v=18';
 
 // English plural forms [one, other].
 const FORMS = {

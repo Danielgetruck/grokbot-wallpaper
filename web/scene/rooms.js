@@ -1,9 +1,9 @@
 // One walled room per team, packed into a single hall. Group names are canvas text, drawn so Hebrew stays RTL.
 import * as THREE from 'three';
 import { CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
-import { isLeadName, isMasterName, isNumberedModName } from './modteam.js?v=17';
-import { buildFurniture } from './furniture.js?v=17';
-import { sharpTexture } from './tex.js?v=17';
+import { isLeadName, isMasterName, isNumberedModName } from './modteam.js?v=18';
+import { buildFurniture } from './furniture.js?v=18';
+import { sharpTexture } from './tex.js?v=18';
 
 const ACCENT = [0xc084fc, 0x22d3ee, 0xf0abfc, 0xa78bfa, 0x67e8f9, 0xe9d5ff, 0xfbbf24, 0x818cf8];
 
@@ -147,14 +147,14 @@ export function layoutHall(_floors, bots) {
     links.push({ a: SERVER.clone(), b: masterSpot.pos.clone(), id: master.id, lift: 0.42, wide: true, ay: 1.35, by: 0.72 });
     for (const b of rest) {
       const s = spots.get(b.id);
-      if (s) links.push({ a: masterSpot.pos.clone(), b: s.pos.clone(), id: b.id, lift: 0.36 });
+      if (s) links.push({ a: s.pos.clone(), b: masterSpot.pos.clone(), id: b.id, lift: 0.36, ay: 0.48, by: 0.72 });
     }
   }
   if (leadSpot) {
     links.push({ a: SERVER.clone(), b: leadSpot.pos.clone(), id: modLead.id, lift: 0.38, wide: true, ay: 1.25, by: 0.72 });
     for (const b of modFamily) {
       const s = spots.get(b.id);
-      if (s) links.push({ a: leadSpot.pos.clone(), b: s.pos.clone(), id: b.id, lift: 0.26 });
+      if (s) links.push({ a: s.pos.clone(), b: leadSpot.pos.clone(), id: b.id, lift: 0.26, ay: 0.48, by: 0.72 });
     }
   }
 

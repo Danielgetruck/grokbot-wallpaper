@@ -9,9 +9,36 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { GTAOPass } from 'three/addons/postprocessing/GTAOPass.js';
 import { BokehPass } from 'three/addons/postprocessing/BokehPass.js';
-import { StudioPass } from './studio.js?v=17';
+import { StudioPass } from './studio.js?v=18';
 import { FXAAShader } from 'three/addons/shaders/FXAAShader.js';
 import { SMAAPass } from 'three/addons/postprocessing/SMAAPass.js';
+import { Pass } from 'three/addons/postprocessing/Pass.js';
+
+// The link tubes live on layer 1 and are drawn after tone mapping, so purple and green stay vivid in daylight.
+class NeonPass extends Pass {
+  constructor(scene, camera) {
+    super();
+    this.scene = scene;
+    this.camera = camera;
+    this.clear = false;
+    this.needsSwap = false;
+  }
+
+  render(renderer, writeBuffer, readBuffer) {
+    const target = this.renderToScreen ? null : readBuffer;
+    const mask = this.camera.layers.mask;
+    const tone = renderer.toneMapping;
+    const autoClear = renderer.autoClear;
+    this.camera.layers.set(1);
+    renderer.toneMapping = THREE.NoToneMapping;
+    renderer.autoClear = false;
+    renderer.setRenderTarget(target);
+    renderer.render(this.scene, this.camera);
+    renderer.autoClear = autoClear;
+    renderer.toneMapping = tone;
+    this.camera.layers.mask = mask;
+  }
+}
 
 const TiltShiftShader = {
   name: 'BotHQTiltShift',
@@ -73,6 +100,7 @@ export function createPost(renderer, scene, camera) {
   composer.addPass(new OutputPass());
   const studio = new StudioPass(scene, camera);
   composer.addPass(studio);
+  composer.addPass(new NeonPass(scene, camera));
   // After the studio backdrop, so only bright lamps and neon bloom. Off on the low quality setting.
   const bokeh = new BokehPass(scene, camera, { focus: 20, aperture: 0.00012, maxblur: 0.006 });
   bokeh.materialBokeh.defines.PERSPECTIVE_CAMERA = 1;
