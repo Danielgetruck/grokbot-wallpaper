@@ -14,8 +14,8 @@
 // declination +10°, solar noon 12:40: 07:15 morning, 13:00 day, 18:50 sunset, 23:00 night), the same on every date;
 // ?time=18:50&real=1 = today's real sun at that time; ?time=auto or setTime(null) = the live clock.
 import * as THREE from 'three';
-import { smoothstep, lerp, clamp } from './spring.js?v=12';
-import { createSunPatch } from './sunpatch.js?v=12';
+import { smoothstep, lerp, clamp } from './spring.js?v=13';
+import { createSunPatch } from './sunpatch.js?v=13';
 
 const rgb = (hex) => { const c = new THREE.Color(hex); c.convertLinearToSRGB(); return [c.r, c.g, c.b]; };
 
@@ -208,7 +208,9 @@ export function createDaylight({ scene, renderer }) {
   const tmp = new THREE.Color();
 
   const urlTime = params.get('time');
-  if (urlTime && urlTime !== 'auto') override = parseClock(urlTime);
+  if (urlTime === 'auto') override = null;
+  else if (urlTime) override = parseClock(urlTime);
+  else override = 13 * 60;
 
   function setTime(value) {
     override = value && value !== 'auto' ? parseClock(value) : null;
@@ -305,8 +307,14 @@ export function createDaylight({ scene, renderer }) {
       else if (kind === 'windows') mat.emissiveIntensity = p.windows * 1.7;
     }
     for (const mat of baked) mat.color.setRGB(...(mat.userData.bqSurface === 'wall' ? [0.86, 0.85, 0.83] : [0.9, 0.89, 0.86]));
-    tmp.setRGB(0.15, 0.2, 0.34);
-    for (const mat of glass) { mat.color.copy(tmp); mat.emissive.set(0, 0, 0); mat.opacity = Math.min(p.glassA, 0.35); }
+    const day = p.night < 0.4;
+    tmp.setRGB(day ? 0.62 : 0.12, day ? 0.78 : 0.16, day ? 0.92 : 0.3);
+    for (const mat of glass) {
+      mat.color.copy(tmp);
+      mat.emissive.set(0, 0, 0);
+      mat.opacity = day ? 0.2 : Math.min(p.glassA, 0.4);
+      mat.roughness = day ? 0.06 : 0.22;
+    }
     patch.update(dir, p.floorSunC, p.floorSun, 1 - p.bake);
   }
 

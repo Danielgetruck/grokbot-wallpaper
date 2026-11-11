@@ -168,8 +168,9 @@ function pad2(n) { return n < 10 ? '0' + n : String(n); }
 // A number that rolls to its new value instead of jumping (the wallpaper's counters). animate=false sets it at once.
 function setNum(n, v, animate) {
   v = Math.max(0, Math.round(Number(v) || 0));
-  if (n._to === v) return;
-  const from = n._to == null ? 0 : n._to;
+  if (n._to === v && n.textContent === String(v)) return;
+  const first = n._to == null;
+  const from = first ? v : n._to;
   n._to = v;
   if (n._raf) { cancelAnimationFrame(n._raf); n._raf = 0; }
   if (n._tm) { clearTimeout(n._tm); n._tm = 0; }
@@ -511,7 +512,7 @@ function buildTopbar(root) {
   const demo = h('span', { class: 'bhq-demo bhq-surface', text: 'DEMO', hidden: true, title: 'Demo data, not real bots' });
   // share an image of the office (web/share/, loaded on first use); audio/sound.js puts the speaker in front of it
   const share = h('button', { class: 'bhq-share bhq-surface', type: 'button', 'aria-label': 'Share an image of your office', title: 'Share', 'aria-haspopup': 'dialog', 'aria-expanded': 'false' }, svg(ICON.share));
-  const loadShare = () => import('../share/share.js?v=12');
+  const loadShare = () => import('../share/share.js?v=13');
   share.addEventListener('pointerenter', loadShare, { once: true });
   share.addEventListener('click', () => {
     loadShare().then((m) => m.toggleShare({ anchor: share, state: U.last.state }), (err) => console.warn('[ui] share', err));
@@ -1323,11 +1324,10 @@ function renderTeam(state, floor, o) {
   let ids = floor ? floorBotIds(state, floor) : [];
   ids = ids.filter((id) => bots[id]);
 
-  let animate = true;
-  if (U.teamFloor !== (floor ? floor.id : null)) {
+  let animate = U.teamFloor === (floor ? floor.id : null);
+  if (!animate) {
     U.teamFloor = floor ? floor.id : null;
     p.list.scrollTop = 0;
-    animate = !U.teamReady; // a new floor shows its own numbers at once
     if (U.teamReady) restartAnim(p.list, 'is-enter');
   }
   U.teamReady = true;

@@ -3,9 +3,9 @@
 // their eyes follow it, they hop when the cursor is within ~0.9 m. Everything moves on springs.
 import * as THREE from 'three';
 import { CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
-import { Spring, REDUCED, clamp, smoothstep } from './spring.js?v=12';
-import { createWorker } from './worker.js?v=12';
-import { isLeadName } from './modteam.js?v=12';
+import { Spring, REDUCED, clamp, smoothstep } from './spring.js?v=13';
+import { createWorker } from './worker.js?v=13';
+import { isLeadName } from './modteam.js?v=13';
 
 export const STATUS_COLOR = {
   working: '#34C759', idle: '#A1A1A6', waiting_user: '#FF9F0A', error: '#FF3B30', stuck: '#FF9500', done: '#0A84FF',

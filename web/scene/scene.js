@@ -5,28 +5,28 @@ import { CSS2DRenderer } from 'three/addons/renderers/CSS2DRenderer.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
-import { loadOfficeAssets } from './office.js?v=12';
-import { Building } from './building.js?v=12';
-import { createDaylight } from './daylight.js?v=12';
-import { createPost } from './post.js?v=12';
-import { studioCss } from './studio.js?v=12';
-import { Actor } from './actor.js?v=12';
-import { generateBlob } from './blobgen.js?v=12';
-import { Spring, clamp, REDUCED } from './spring.js?v=12';
-import { sofiaHour, fontsPromise } from './walls.js?v=12';
-import { applyDesks, tick as tickLife, ensureCat, petCat, sendMail, addressedTo, cullLabels } from './life.js?v=12';
-import { syncTeam, tickTeam, blockedDesk } from './modteam.js?v=12';
-import { spawnBeam, spawnTrail, tickPackets, setNetwork, tickNetwork, setFlowPace } from './packets.js?v=12';
-import { useHall, layoutHall, buildHall, faceSign, tickFloor } from './rooms.js?v=12';
-import { initQuality, getQuality, isSoftGpu, tickPolish, ensureDust, tickDust, syncRug, accentFor } from './polish.js?v=12';
-import { installCity } from './city.js?v=12';
+import { loadOfficeAssets } from './office.js?v=13';
+import { Building } from './building.js?v=13';
+import { createDaylight } from './daylight.js?v=13';
+import { createPost } from './post.js?v=13';
+import { studioCss } from './studio.js?v=13';
+import { Actor } from './actor.js?v=13';
+import { generateBlob } from './blobgen.js?v=13';
+import { Spring, clamp, REDUCED } from './spring.js?v=13';
+import { sofiaHour, fontsPromise } from './walls.js?v=13';
+import { applyDesks, tick as tickLife, ensureCat, petCat, sendMail, addressedTo, cullLabels } from './life.js?v=13';
+import { syncTeam, tickTeam, blockedDesk } from './modteam.js?v=13';
+import { spawnBeam, spawnTrail, tickPackets, setNetwork, tickNetwork, setFlowPace } from './packets.js?v=13';
+import { useHall, layoutHall, buildHall, faceSign, tickFloor } from './rooms.js?v=13';
+import { initQuality, getQuality, isSoftGpu, tickPolish, ensureDust, tickDust, syncRug, accentFor } from './polish.js?v=13';
+import { installCity } from './city.js?v=13';
 
 // Relative to the page (not the site root), so the office also works when it is published in a sub-folder, e.g.
 // https://bodila51.github.io/grokbot-wallpaper/office/ -> ../assets. Locally the page is at `/`, where this is /assets.
 const ASSETS = '../assets';
 const ISO_DIR = new THREE.Vector3(1, 1, 1).normalize();
 const HOME = { x: 0, y: 0.6, z: 0 };
-const PITCH = 40 * Math.PI / 180;                   // look down into the rooms
+const PITCH = 32 * Math.PI / 180;                   // look down into the rooms, with garden and horizon at the edge
 const DIST = { min: 6, max: 110, phone: 11, hall: 28 };
 const VIEW_SPAN = { w: 28, h: 18 };
 const UI_LEFT = 230, UI_RIGHT = 360;                   // glass panels the building must not hide behind
@@ -400,7 +400,8 @@ function distanceFor(width, depth) {
   const hFov = 2 * Math.atan(Math.tan(vFov / 2) * aspect);
   const distW = (width * 0.55) / Math.tan(hFov / 2);
   const distD = (depth * 0.55) / Math.tan(vFov / 2) * Math.sin(PITCH);
-  return clamp(Math.max(distW, distD) * 1.18, DIST.min, DIST.max);
+  const close = isPortraitPhone() ? 0.96 : 0.88;
+  return clamp(Math.max(distW, distD) * close, DIST.min, DIST.max);
 }
 
 function floorY() {
@@ -421,8 +422,9 @@ function frameAll(snap) {
     minX = Math.min(minX, r.x - r.w / 2); maxX = Math.max(maxX, r.x + r.w / 2);
     minZ = Math.min(minZ, r.z - r.d / 2); maxZ = Math.max(maxZ, r.z + r.d / 2);
   }
-  const fit = distanceFor(maxX - minX + 2.4, maxZ - minZ + 2.4);
-  aim((minX + maxX) / 2, 0.8, (minZ + maxZ) / 2, isPortraitPhone() ? Math.min(fit, 26) : fit, snap);
+  const rim = isPortraitPhone() ? 1.2 : 2.6;
+  const fit = distanceFor(maxX - minX + rim, maxZ - minZ + rim);
+  aim((minX + maxX) / 2, 0.8, (minZ + maxZ) / 2, isPortraitPhone() ? Math.min(fit, 22) : fit, snap);
 }
 
 function frameDefault(snap) {

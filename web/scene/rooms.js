@@ -1,7 +1,7 @@
 // One walled room per team, packed into a single hall. Group names are canvas text, drawn so Hebrew stays RTL.
 import * as THREE from 'three';
-import { isFamilyName, isLeadName, isMasterName } from './modteam.js?v=12';
-import { buildFurniture } from './furniture.js?v=12';
+import { isFamilyName, isLeadName, isMasterName } from './modteam.js?v=13';
+import { buildFurniture } from './furniture.js?v=13';
 
 const ACCENT = [0xc084fc, 0x22d3ee, 0xf0abfc, 0xa78bfa, 0x67e8f9, 0xe9d5ff, 0xfbbf24, 0x818cf8];
 
@@ -263,6 +263,36 @@ function whiteFloorMaterial() {
   });
 }
 
+function addIndoorGreens(root, cx, cz, fw, fd) {
+  const n = 8;
+  const pots = new THREE.InstancedMesh(
+    new THREE.CylinderGeometry(0.18, 0.14, 0.22, 7),
+    new THREE.MeshStandardMaterial({ color: 0xc4784a, roughness: 0.7 }),
+    n,
+  );
+  const leaves = new THREE.InstancedMesh(
+    new THREE.SphereGeometry(0.28, 7, 5),
+    new THREE.MeshStandardMaterial({ color: 0x2f9a4a, roughness: 0.62 }),
+    n,
+  );
+  const o = new THREE.Object3D();
+  const hx = Math.max(1.4, fw / 2 - 1.35);
+  const hz = Math.max(1.4, fd / 2 - 1.35);
+  const spots = [[-hx, -hz], [hx, -hz], [-hx, hz], [hx, hz], [0, -hz], [0, hz], [-hx, 0], [hx, 0]];
+  spots.forEach(([x, z], i) => {
+    o.position.set(cx + x, 0.12, cz + z);
+    o.scale.set(1, 1, 1);
+    o.rotation.set(0, 0, 0);
+    o.updateMatrix();
+    pots.setMatrixAt(i, o.matrix);
+    o.position.y = 0.4;
+    o.scale.set(1, 0.75, 1);
+    o.updateMatrix();
+    leaves.setMatrixAt(i, o.matrix);
+  });
+  root.add(pots, leaves);
+}
+
 function starField(w, d, at) {
   const n = 70;
   const pos = new Float32Array(n * 3);
@@ -288,8 +318,9 @@ function addShell(root, cx, cz, fw, fd) {
   const frame = new THREE.MeshStandardMaterial({ color: 0xf4f1ea, roughness: 0.55, metalness: 0.04 });
   const metal = new THREE.MeshStandardMaterial({ color: 0xc5cad3, roughness: 0.28, metalness: 0.72 });
   const glass = new THREE.MeshPhysicalMaterial({
-    color: 0x1a2744, roughness: 0.15, metalness: 0.04, transparent: true, opacity: 0.22,
-    emissive: 0x000000, emissiveIntensity: 0, side: THREE.DoubleSide, depthWrite: false,
+    name: 'glass_pane',
+    color: 0xb7d4f0, roughness: 0.06, metalness: 0.04, transparent: true, opacity: 0.2,
+    emissive: 0x000000, emissiveIntensity: 0, envMapIntensity: 0.7, side: THREE.DoubleSide, depthWrite: false,
   });
   const neon = new THREE.MeshBasicMaterial({ color: 0xc084fc, transparent: true, opacity: 0.75, blending: THREE.AdditiveBlending, depthWrite: false });
   neonStrips = [];
@@ -401,9 +432,7 @@ export function buildHall(parent, layout) {
   floor.name = 'hall-floor';
   root.add(floor);
   addShell(root, floor.position.x, floor.position.z, fw, fd);
-  const stars = starField(fw, fd, floor.position);
-  floorMat.userData.stars = stars;
-  root.add(stars);
+  addIndoorGreens(root, floor.position.x, floor.position.z, fw, fd);
   if (layout.modMark) {
     const m = layout.modMark;
     const neon = new THREE.MeshBasicMaterial({ color: 0xe9d5ff, transparent: true, opacity: 0.85, blending: THREE.AdditiveBlending, depthWrite: false });
