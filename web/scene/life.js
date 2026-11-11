@@ -2,8 +2,9 @@
 // and the occasional envelope. Feed text is drawn with canvas fillText or textContent, never HTML.
 import * as THREE from 'three';
 import { CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
-import { REDUCED } from './spring.js?v=16';
-import { spawnRipple } from './packets.js?v=16';
+import { REDUCED } from './spring.js?v=17';
+import { sharpTexture } from './tex.js?v=17';
+import { spawnRipple } from './packets.js?v=17';
 
 const LIGHT = {
   working: { hex: 0xb7dcff, em: 2.1 },
@@ -30,7 +31,7 @@ function canvas(w, h) {
   c.height = h;
   const tex = new THREE.CanvasTexture(c);
   tex.colorSpace = THREE.SRGBColorSpace;
-  tex.anisotropy = 4;
+  sharpTexture(tex);
   return { c, g: c.getContext('2d'), tex };
 }
 
@@ -42,7 +43,7 @@ function bind(inst) {
     const plate = inst.obj.getObjectByName(`nameplate_${nn}`);
     const bulb = inst.obj.getObjectByName(`status_lamp_${nn}`)?.getObjectByName('status_bulb');
     const screen = inst.obj.getObjectByName(`laptop_screen_${nn}`);
-    const screenCv = screen ? canvas(256, 144) : null;
+    const screenCv = screen ? canvas(768, 432) : null;
     let label = null;
     if (plate) {
       plate.material.opacity = 0;

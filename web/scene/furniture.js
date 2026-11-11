@@ -91,8 +91,8 @@ function workstationTemplate() {
   g.add(part(new THREE.BoxGeometry(0.04, 0.7, 0.03), 'metal', 0.78, 1.05, 0.16, 0, 0, 0, { skipLead: true }));
 
   // ergonomic mesh chair, origin at the sitter's feet
-  g.add(part(new THREE.CylinderGeometry(0.035, 0.04, 0.28, 10), 'metal', 0, 0.28, 0));
-  g.add(part(new THREE.CylinderGeometry(0.07, 0.07, 0.025, 10), 'metal', 0, 0.12, 0));
+  g.add(part(new THREE.CylinderGeometry(0.035, 0.04, 0.28, 16), 'metal', 0, 0.28, 0));
+  g.add(part(new THREE.CylinderGeometry(0.07, 0.07, 0.025, 16), 'metal', 0, 0.12, 0));
   g.add(part(new THREE.BoxGeometry(0.46, 0.05, 0.46), 'mesh', 0, 0.48, 0.02));
   g.add(part(new THREE.BoxGeometry(0.42, 0.48, 0.025), 'mesh', 0, 0.78, -0.2));
   g.add(part(new THREE.BoxGeometry(0.04, 0.5, 0.03), 'metal', -0.2, 0.76, -0.19));

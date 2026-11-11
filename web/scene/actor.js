@@ -2,11 +2,11 @@
 // v2.5 behaviour: blobs turn toward the cursor (ground point within ~3.5 m, seated bots with a limited turn),
 // their eyes follow it, they hop when the cursor is within ~0.9 m. Everything moves on springs.
 import * as THREE from 'three';
-import { isWorking } from '../lib/live.js?v=16';
+import { isWorking } from '../lib/live.js?v=17';
 import { CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
-import { Spring, REDUCED, clamp, smoothstep } from './spring.js?v=16';
-import { createWorker } from './worker.js?v=16';
-import { isLeadName } from './modteam.js?v=16';
+import { Spring, REDUCED, clamp, smoothstep } from './spring.js?v=17';
+import { createWorker } from './worker.js?v=17';
+import { isLeadName } from './modteam.js?v=17';
 
 export const STATUS_COLOR = {
   working: '#34C759', idle: '#A1A1A6', waiting_user: '#FF9F0A', error: '#FF3B30', stuck: '#FF9500', done: '#0A84FF',

@@ -1,6 +1,6 @@
 // Waiting list, feed ticker, and tab title. Every string from the feed goes through textContent.
 // There is no audio: no chime, no typing sound, no AudioContext.
-import { getQuality, toggleQuality } from './polish.js?v=16';
+import { getQuality, toggleQuality } from './polish.js?v=17';
 
 const BASE_TITLE = document.title || 'Grok Bot Dashboard';
 

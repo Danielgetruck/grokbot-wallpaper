@@ -5,10 +5,10 @@
 // open/closed swap of two floors happens in one frame at the peak of a short canvas blur ("whoosh"), so big floors
 // never cross-fade (that was hazy and heavy: every material went through the transparent pass).
 import * as THREE from 'three';
-import { Spring, smoothstep } from './spring.js?v=16';
-import { FLOOR_STEP, SLAB, SHAFT_POS } from './office.js?v=16';
-import { WallDisplays } from './walls.js?v=16';
-import { floorStyles, applyFloorStyle, styleObjects, styleNightMaps } from './floorstyle.js?v=16';
+import { Spring, smoothstep } from './spring.js?v=17';
+import { FLOOR_STEP, SLAB, SHAFT_POS } from './office.js?v=17';
+import { WallDisplays } from './walls.js?v=17';
+import { floorStyles, applyFloorStyle, styleObjects, styleNightMaps } from './floorstyle.js?v=17';
 
 const LIFT = 20;                        // how far upper floors slide up, out of the frame (m)
 const SWAP_AT = 0.14;                   // s after a switch starts: blur peak, open/closed swap

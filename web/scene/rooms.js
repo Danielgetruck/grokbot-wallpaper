@@ -1,8 +1,9 @@
 // One walled room per team, packed into a single hall. Group names are canvas text, drawn so Hebrew stays RTL.
 import * as THREE from 'three';
 import { CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
-import { isLeadName, isMasterName, isNumberedModName } from './modteam.js?v=16';
-import { buildFurniture } from './furniture.js?v=16';
+import { isLeadName, isMasterName, isNumberedModName } from './modteam.js?v=17';
+import { buildFurniture } from './furniture.js?v=17';
+import { sharpTexture } from './tex.js?v=17';
 
 const ACCENT = [0xc084fc, 0x22d3ee, 0xf0abfc, 0xa78bfa, 0x67e8f9, 0xe9d5ff, 0xfbbf24, 0x818cf8];
 
@@ -218,9 +219,7 @@ function signTexture(name, color) {
   g.fillText(label, 1024, 268);
   const t = new THREE.CanvasTexture(c);
   t.colorSpace = THREE.SRGBColorSpace;
-  t.anisotropy = 8;
-  t.generateMipmaps = true;
-  return t;
+  return sharpTexture(t);
 }
 
 function addWall(g, x, z, w, d, mat, neon) {
@@ -304,24 +303,24 @@ let floorMat = null;
 
 function whiteFloorMaterial() {
   const c = document.createElement('canvas');
-  c.width = 512; c.height = 512;
+  c.width = 1024; c.height = 1024;
   const g = c.getContext('2d');
   g.fillStyle = '#243044';
-  g.fillRect(0, 0, 512, 512);
+  g.fillRect(0, 0, 1024, 1024);
   g.strokeStyle = '#1a2433';
-  g.lineWidth = 3;
-  const tile = 64;
-  for (let i = 0; i <= 512; i += tile) {
+  g.lineWidth = 6;
+  const tile = 128;
+  for (let i = 0; i <= 1024; i += tile) {
     g.beginPath();
-    g.moveTo(i, 0); g.lineTo(i, 512); g.stroke();
+    g.moveTo(i, 0); g.lineTo(i, 1024); g.stroke();
     g.beginPath();
-    g.moveTo(0, i); g.lineTo(512, i); g.stroke();
+    g.moveTo(0, i); g.lineTo(1024, i); g.stroke();
   }
   const map = new THREE.CanvasTexture(c);
   map.wrapS = map.wrapT = THREE.RepeatWrapping;
   map.repeat.set(6, 5);
   map.colorSpace = THREE.SRGBColorSpace;
-  map.anisotropy = 8;
+  sharpTexture(map);
   return new THREE.MeshStandardMaterial({
     map, color: 0xffffff, roughness: 0.42, metalness: 0.18, envMapIntensity: 0.38,
   });

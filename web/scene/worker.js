@@ -4,9 +4,9 @@ import * as THREE from 'three';
 const skinMat = new THREE.MeshStandardMaterial({ color: 0xe6c2a6, roughness: 0.55, metalness: 0.02 });
 const pantsMat = new THREE.MeshStandardMaterial({ color: 0x1e2430, roughness: 0.8 });
 const shoeMat = new THREE.MeshStandardMaterial({ color: 0x14161c, roughness: 0.45, metalness: 0.2 });
-const sleeveGeo = new THREE.CapsuleGeometry(0.045, 0.28, 3, 6);
-const thighGeo = new THREE.CapsuleGeometry(0.055, 0.2, 3, 6);
-const shinGeo = new THREE.CapsuleGeometry(0.042, 0.22, 3, 6);
+const sleeveGeo = new THREE.CapsuleGeometry(0.045, 0.28, 6, 10);
+const thighGeo = new THREE.CapsuleGeometry(0.055, 0.2, 6, 10);
+const shinGeo = new THREE.CapsuleGeometry(0.042, 0.22, 6, 10);
 
 function accentMaterial(hex) {
   const c = new THREE.Color(hex);
@@ -36,7 +36,7 @@ export function createWorker({ color, lead = false } = {}) {
 
   const headPivot = new THREE.Group();
   headPivot.position.set(0, 1.08, 0.14);
-  const head = new THREE.Mesh(new THREE.SphereGeometry(0.13, 14, 12), skinMat);
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.13, 24, 18), skinMat);
   head.scale.set(1, 1.05, 0.95);
   const hair = new THREE.Mesh(new THREE.SphereGeometry(0.135, 12, 10), shirt);
   hair.scale.set(1, 0.55, 1);
@@ -48,7 +48,7 @@ export function createWorker({ color, lead = false } = {}) {
   const visor = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.02, 0.01), shirt);
   visor.position.set(0, 0.02, 0.125);
   const beacon = new THREE.Mesh(
-    new THREE.SphereGeometry(0.2, 14, 12),
+    new THREE.SphereGeometry(0.2, 24, 18),
     new THREE.MeshStandardMaterial({ color: 0xef4444, emissive: 0xef4444, emissiveIntensity: 0.9, roughness: 0.4 }),
   );
   beacon.position.set(0, 0.46, 0);

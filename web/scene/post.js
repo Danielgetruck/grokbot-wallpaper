@@ -9,8 +9,9 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { GTAOPass } from 'three/addons/postprocessing/GTAOPass.js';
 import { BokehPass } from 'three/addons/postprocessing/BokehPass.js';
-import { StudioPass } from './studio.js?v=16';
+import { StudioPass } from './studio.js?v=17';
 import { FXAAShader } from 'three/addons/shaders/FXAAShader.js';
+import { SMAAPass } from 'three/addons/postprocessing/SMAAPass.js';
 
 const TiltShiftShader = {
   name: 'BotHQTiltShift',
@@ -79,10 +80,13 @@ export function createPost(renderer, scene, camera) {
   bokeh.enabled = false;
   composer.addPass(bokeh);
   // High threshold so the purple backdrop stays quiet and only lamps, screens and neon bloom.
-  const bloom = new UnrealBloomPass(new THREE.Vector2(size.x, size.y), 0.12, 0.2, 0.96);
+  const bloom = new UnrealBloomPass(new THREE.Vector2(size.x * pr, size.y * pr), 0.12, 0.2, 0.96);
   bloom.enabled = false;
   composer.addPass(bloom);
+  const smaa = new SMAAPass(size.x * pr, size.y * pr);
   const fxaa = new ShaderPass(FXAAShader);
+  fxaa.enabled = false;
+  composer.addPass(smaa);
   composer.addPass(fxaa);
 
   const api = {
@@ -96,6 +100,11 @@ export function createPost(renderer, scene, camera) {
       fxaa.material.uniforms.resolution.value.set(1 / pxW, 1 / pxH);
       this.base = 1.05 * renderer.getPixelRatio();
       h.uniforms.strength.value = v.uniforms.strength.value = this.base;
+    },
+    setAa(mode) {
+      const sharp = mode !== 'fxaa';
+      smaa.enabled = sharp;
+      fxaa.enabled = !sharp;
     },
     setBloom(on) { bloom.enabled = !!on; },
     setAo(on) { gtao.enabled = !!on; },
