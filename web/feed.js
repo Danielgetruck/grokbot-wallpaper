@@ -3,7 +3,10 @@
 // not a secret. Decrypted lines are cached for this tab only (sessionStorage, keyed by the topic). A `working` bot
 // that stays silent for 20 minutes counts as idle (it forgot its closing line).
 //
-// Lines on the channel (one JSON object per message, at most 4 KB, anything else is dropped):
+// Lines on the channel (one JSON object per message, at most 4 KB on the wire). A publisher may
+// instead send one snapshot, {"type":"snapshot","v":1,"captured_at","bots":[…], …}, which replaces the
+// office. The newest captured_at wins. A snapshot bigger than one ntfy body arrives as snapshot_part
+// slices and is reassembled here; an incomplete set is dropped after 10 minutes. Per-bot lines still apply.
 //   {"bot":"…","status":"working|idle|waiting_user|error|done","step":"…"}     a status change
 //   {"roster":["Bot A","Bot B"]}                                                every bot appears, idle until it posts
 //   {"looks":{"Bot A":{"shape":"sphere","color":"#RRGGBB","accessory":"none"}}} how each bot's blob looks
@@ -15,9 +18,10 @@
 // On top of the server's state the office gets state.finished (done lines of the last 24 h, newest first),
 // state.routines (every bot's routines, soonest first) and state.check (the latest status check: who has answered), for
 // the «Finished», «Routines» and «Status check» panels.
-import { StateStore, botIdFor } from './lib/state.js?v=19';
-import { FEED_BASE, feedFromLink } from './lib/feedbase.js?v=19';
-import { openFeedMessage } from './lib/feedcrypt.js?v=19';
+import { StateStore, botIdFor } from './lib/state.js?v=20';
+import { FEED_BASE, feedFromLink } from './lib/feedbase.js?v=20';
+import { openFeedMessage } from './lib/feedcrypt.js?v=20';
+import { PartBuffer, normalizeSnapshot } from './lib/snapshot.js?v=20';
 
 const NTFY = 'https://ntfy.sh';
 const MAX_LINE = 4096, KEEP = 600, TICK_MS = 30e3, DAY_MS = 24 * 3600e3;
@@ -41,11 +45,7 @@ export async function connectFeed({ topic, key }, onState) {
   const cacheKey = `bothq.feed.s1.${topic}`;
   const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'Europe/Sofia';
   const store = new StateStore({ tz, quietIdleMs: QUIET_MS, hasAvatar: (id) => HANDMADE.has(id) });   // no GLB probe: every bot is generated from its look
-  const cfg = {};                                        // per bot name: { look, chat_url } -> the store's bots config
-  const routines = new Map();                            // bot id -> { name, items }
-  const ticker = [];                                     // chat links and routines, newest first (status lines live on state.feed)
-  const pushTicker = (item) => { ticker.unshift(item); if (ticker.length > 30) ticker.pop(); };
-  let check = null;                                      // the latest status check: { ms, names }
+  const channel = createChannel(store);
   let lines = [], saveTimer = 0;
   const seen = new Set();
 
@@ -59,12 +59,16 @@ export async function connectFeed({ topic, key }, onState) {
     } catch { /* offline or down: the session cache still shows the office */ }
   }));
   lines = lines.filter(fresh).sort((a, b) => a.time - b.time);   // stable: lines of one second keep the mailbox's order
-  for (const l of lines) ingest(l, true);
+  for (const l of lines) channel.ingest(l, true);
   save();
   publish();
 
   for (const s of sources) follow(s);
-  setInterval(() => { const v = store.version, s = store.snapshot(); if (store.version !== v) onState(extras(s)); }, TICK_MS);
+  setInterval(() => {
+    channel.sweep();
+    const v = store.version, s = store.snapshot();
+    if (store.version !== v) onState(channel.extras(s, lines));
+  }, TICK_MS);
 
   function cached(key) {
     try { return JSON.parse(sessionStorage.getItem(key)) || []; } catch { return []; }
@@ -97,7 +101,7 @@ export async function connectFeed({ topic, key }, onState) {
     if (lines.length > KEEP * 1.5) lines = lines.slice(-KEEP);
     clearTimeout(saveTimer);
     saveTimer = setTimeout(save, 2000);
-    return ingest(l, false);
+    return channel.ingest(l, false);
   }
   function follow(s) {
     const on = (data) => {
@@ -120,49 +124,93 @@ export async function connectFeed({ topic, key }, onState) {
       if (changed) publish();
     } catch { /* the stream retries by itself */ }
   }
-  function parseRecord(message) {
-    if (typeof message !== 'string') return null;
-    let text = message.trim().replace(/^\uFEFF/, '');
-    const fenced = /^```(?:json)?\s*([\s\S]*?)```$/i.exec(text);
-    if (fenced) text = fenced[1].trim();
-    if (text.startsWith('{')) {
-      try {
-        const rec = JSON.parse(text);
-        if (rec && typeof rec === 'object' && !Array.isArray(rec)) return rec;
-      } catch { return null; }
-    }
-    // post_status.py sometimes posts "Name|working|what it is doing"
-    const parts = text.split('|').map((s) => s.trim());
-    if (parts.length >= 2 && parts.length <= 4 && parts[0] && parts[0].length <= 80 && parts[1].length <= 40) {
-      return { bot: parts[0], status: parts[1], step: parts[2] || '' };
-    }
-    return null;
-  }
+  function publish() { store.commit(); onState(channel.extras(store.snapshot(), lines)); }
+  function save() { try { sessionStorage.setItem(cacheKey, JSON.stringify(lines.slice(-KEEP))); } catch { /* private mode: memory only */ } }
+}
+
+/** The office reducer: per-bot lines merge, a newer snapshot replaces every bot. */
+export function createChannel(store, now = Date.now) {
+  const cfg = {};                                        // per bot name: { look, chat_url } -> the store's bots config
+  const routines = new Map();                            // bot id -> { name, items }
+  const ticker = [];                                     // chat links and routines, newest first (status lines live on state.feed)
+  const pushTicker = (item) => { ticker.unshift(item); if (ticker.length > 30) ticker.pop(); };
+  const parts = new PartBuffer(now);
+  let check = null;                                      // the latest status check: { ms, names }
+  let lastSnap = null;                                   // captured_at ms of the snapshot currently on screen
+
   function ingest({ message, time }, replay) {
     if (typeof message !== 'string' || message.length > MAX_LINE) return false;
     const rec = parseRecord(message);
     if (!rec) return false;
-    const t = typeof rec.t === 'string' ? rec.t : new Date(time * 1000).toISOString();
+    if (rec.type === 'snapshot_part') {
+      const snap = parts.push(rec);
+      return snap ? applyIfNewer(snap, replay) : false;
+    }
+    if (rec.type === 'snapshot') {
+      const snap = normalizeSnapshot(rec);
+      return snap ? applyIfNewer(snap, replay) : false;
+    }
+    return applyRecord(rec, typeof rec.t === 'string' ? rec.t : new Date(time * 1000).toISOString(), time, replay);
+  }
+
+  function applyIfNewer(snap, replay) {
+    const ms = Date.parse(snap.captured_at);
+    if (!Number.isFinite(ms) || (lastSnap !== null && ms <= lastSnap)) return false;
+    lastSnap = ms;
+    const iso = new Date(ms).toISOString();
+    store.reset();
+    for (const k of Object.keys(cfg)) delete cfg[k];
+    routines.clear();
+    ticker.length = 0;
+    check = null;
+    if (Array.isArray(snap.roster)) applyRecord({ roster: snap.roster }, iso, ms / 1000, replay);
+    for (const bot of snap.bots) {
+      if (!isMap(bot)) continue;
+      const { type, ...rest } = bot;
+      const rec = { ...rest, t: typeof rest.t === 'string' ? rest.t : iso };
+      if (typeof type === 'string' && /^(activity|event|status|post_status|heartbeat)$/i.test(type)) rec.type = type;
+      store.apply(rec, { replay });
+    }
+    if (isMap(snap.groups)) {
+      for (const [name, team] of Object.entries(snap.groups).slice(0, 400)) {
+        const group = typeof team === 'string' ? team.trim().slice(0, 60) : '';
+        if (!group || typeof name !== 'string' || !name.trim()) continue;
+        const id = botIdFor(name);
+        const have = store.bots.get(id);
+        if (have) have.group = group;
+        else store.apply({ t: iso, bot: name, group, status: 'idle', step: '', listed: true }, { replay });
+      }
+      store.reassignAll();
+    }
+    if (isMap(snap.looks) || isMap(snap.chat)) applyRecord({ looks: snap.looks, chat: snap.chat }, iso, ms / 1000, replay);
+    const lists = Array.isArray(snap.routines) ? snap.routines : isMap(snap.routines) ? [snap.routines] : [];
+    for (const block of lists) if (isMap(block)) applyRecord({ routines: block, t: iso }, iso, ms / 1000, replay);
+    if (isMap(snap.usage)) store.apply({ ...snap.usage, type: 'usage', t: iso }, { replay });
+    if (isMap(snap.check)) applyRecord({ check: snap.check, t: iso }, iso, ms / 1000, replay);
+    return true;
+  }
+
+  function applyRecord(rec, t, time, replay) {
     if (Array.isArray(rec.roster)) {
       for (const name of rec.roster.slice(0, 400)) {
         if (typeof name === 'string' && name.trim() && !store.bots.has(botIdFor(name))) store.apply({ t, bot: name, status: 'idle', step: '', listed: true }, { replay });
       }
       return true;
     }
-    if (isMap(rec.looks)) {
-      for (const [name, look] of Object.entries(rec.looks).slice(0, 400)) (cfg[name] ||= {}).look = look;
-      store.setBotsConfig(cfg);
-      return true;
-    }
-    if (isMap(rec.groups)) return true;                  // one office: team tags never become separate floors
-    if (isMap(rec.chat)) {                               // only app deep links and web pages (the store refuses scripts)
-      for (const [name, url] of Object.entries(rec.chat).slice(0, 400)) {
-        const chat = safeChatUrl(url);
-        if (chat) (cfg[name] ||= {}).chat_url = chat;
+    if (isMap(rec.looks) || isMap(rec.chat)) {
+      if (isMap(rec.looks)) {
+        for (const [name, look] of Object.entries(rec.looks).slice(0, 400)) (cfg[name] ||= {}).look = look;
+      }
+      if (isMap(rec.chat)) {                             // only app deep links and web pages (the store refuses scripts)
+        for (const [name, url] of Object.entries(rec.chat).slice(0, 400)) {
+          const chat = safeChatUrl(url);
+          if (chat) (cfg[name] ||= {}).chat_url = chat;
+        }
       }
       store.setBotsConfig(cfg);
       return true;
     }
+    if (isMap(rec.groups)) return true;                  // a lone groups line does not build floors; a snapshot's groups do
     if (isMap(rec.routines)) {
       const name = typeof rec.routines.bot === 'string' ? rec.routines.bot.trim().slice(0, 80) : '';
       if (!name || !Array.isArray(rec.routines.items)) return false;
@@ -185,10 +233,12 @@ export async function connectFeed({ topic, key }, onState) {
     store.apply({ ...rec, t }, { replay });
     return true;
   }
-  function extras(s) {                                   // the panels' data on top of the server-shaped state
+
+  function extras(s, lines) {                            // the panels' data on top of the server-shaped state
     const since = Date.now() - DAY_MS, finished = [];
-    for (let i = lines.length - 1; i >= 0 && finished.length < 100; i--) {
-      const l = lines[i];
+    const list = Array.isArray(lines) ? lines : [];
+    for (let i = list.length - 1; i >= 0 && finished.length < 100; i--) {
+      const l = list[i];
       if (l.time * 1000 < since) break;
       if (typeof l.message !== 'string' || l.message.length > MAX_LINE || !l.message.includes('"done"')) continue;
       let rec;
@@ -209,8 +259,27 @@ export async function connectFeed({ topic, key }, onState) {
     } : null;
     return s;
   }
-  function publish() { store.commit(); onState(extras(store.snapshot())); }
-  function save() { try { sessionStorage.setItem(cacheKey, JSON.stringify(lines.slice(-KEEP))); } catch { /* private mode: memory only */ } }
+
+  return { ingest, extras, sweep: () => parts.sweep() };
+}
+
+function parseRecord(message) {
+  if (typeof message !== 'string') return null;
+  let text = message.trim().replace(/^\uFEFF/, '');
+  const fenced = /^```(?:json)?\s*([\s\S]*?)```$/i.exec(text);
+  if (fenced) text = fenced[1].trim();
+  if (text.startsWith('{')) {
+    try {
+      const rec = JSON.parse(text);
+      if (rec && typeof rec === 'object' && !Array.isArray(rec)) return rec;
+    } catch { return null; }
+  }
+  // post_status.py sometimes posts "Name|working|what it is doing"
+  const parts = text.split('|').map((s) => s.trim());
+  if (parts.length >= 2 && parts.length <= 4 && parts[0] && parts[0].length <= 80 && parts[1].length <= 40) {
+    return { bot: parts[0], status: parts[1], step: parts[2] || '' };
+  }
+  return null;
 }
 
 function isMap(v) { return !!v && typeof v === 'object' && !Array.isArray(v); }
