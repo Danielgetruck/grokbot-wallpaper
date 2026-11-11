@@ -8,16 +8,16 @@ const mat = {
   metal: new THREE.MeshStandardMaterial({ color: 0xb7bcc6, roughness: 0.32, metalness: 0.85 }),
   modesty: new THREE.MeshStandardMaterial({ color: 0x4a463f, roughness: 0.7, metalness: 0.08 }),
   mesh: new THREE.MeshStandardMaterial({ color: 0x2a3140, roughness: 0.85, metalness: 0.05 }),
-  screen: new THREE.MeshStandardMaterial({ color: 0xd7ecff, roughness: 0.18, metalness: 0.05, emissive: 0x9fd0ff, emissiveIntensity: 0.55 }),
+  screen: new THREE.MeshStandardMaterial({ color: 0xd7ecff, roughness: 0.35, metalness: 0.02, emissive: 0x9fd0ff, emissiveIntensity: 0.22 }),
   bezel: new THREE.MeshStandardMaterial({ color: 0x1a1c22, roughness: 0.4, metalness: 0.5 }),
   plant: new THREE.MeshStandardMaterial({ color: 0x2f7a45, roughness: 0.75 }),
   pot: new THREE.MeshStandardMaterial({ color: 0xe7e2d8, roughness: 0.55 }),
   mug: new THREE.MeshStandardMaterial({ color: 0xf3f0ea, roughness: 0.28, metalness: 0.04 }),
   paper: new THREE.MeshStandardMaterial({ color: 0xf7f4ee, roughness: 0.8 }),
-  lamp: new THREE.MeshStandardMaterial({ color: 0xffe6b0, roughness: 0.3, emissive: 0xffd27a, emissiveIntensity: 0.7 }),
+  lamp: new THREE.MeshStandardMaterial({ color: 0xffe6b0, roughness: 0.55, metalness: 0.02, emissive: 0x000000, emissiveIntensity: 0 }),
   panel: new THREE.MeshStandardMaterial({ color: 0xd8dde6, roughness: 0.55, metalness: 0.04, transparent: true, opacity: 0.72 }),
   frost: new THREE.MeshPhysicalMaterial({ color: 0xb7c3d4, roughness: 0.28, metalness: 0.02, transparent: true, opacity: 0.72, depthWrite: false }),
-  glow: new THREE.MeshBasicMaterial({ color: 0xe9d5ff, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }),
+  glow: new THREE.MeshBasicMaterial({ color: 0xc4b5fd, transparent: true, opacity: 0.35, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }),
 };
 
 function roundedSlab(w, d, thick, radius) {

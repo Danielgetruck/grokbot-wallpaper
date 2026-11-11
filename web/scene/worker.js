@@ -10,7 +10,7 @@ const shinGeo = new THREE.CapsuleGeometry(0.042, 0.22, 3, 6);
 
 function accentMaterial(hex) {
   const c = new THREE.Color(hex);
-  return new THREE.MeshStandardMaterial({ color: c, roughness: 0.55, metalness: 0.08, emissive: c, emissiveIntensity: 0.08 });
+  return new THREE.MeshStandardMaterial({ color: c, roughness: 0.62, metalness: 0.04, emissive: 0x000000, emissiveIntensity: 0 });
 }
 
 function parseColor(value) {

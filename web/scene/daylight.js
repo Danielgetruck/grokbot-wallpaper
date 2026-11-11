@@ -14,8 +14,8 @@
 // declination +10°, solar noon 12:40: 07:15 morning, 13:00 day, 18:50 sunset, 23:00 night), the same on every date;
 // ?time=18:50&real=1 = today's real sun at that time; ?time=auto or setTime(null) = the live clock.
 import * as THREE from 'three';
-import { smoothstep, lerp, clamp } from './spring.js?v=9';
-import { createSunPatch } from './sunpatch.js?v=9';
+import { smoothstep, lerp, clamp } from './spring.js?v=10';
+import { createSunPatch } from './sunpatch.js?v=10';
 
 const rgb = (hex) => { const c = new THREE.Color(hex); c.convertLinearToSRGB(); return [c.r, c.g, c.b]; };
 
@@ -148,8 +148,8 @@ const PLAN_MS = 20000;                                    // the target follows 
 const SCAN_MS = 2000;                                     // materials and shadow flags are refreshed every 2 s
 const LAMP_COUNT = 6;
 const LAMP_COLOR = 0xffbb74;
-const LAMP_INTENSITY = 22;                                // the spot lights on the lit furniture (cd)
-const LAMP_POOL = 4.0;                                    // the same lamps on the baked floor (sunpatch.js)
+const LAMP_INTENSITY = 3.5;                               // the spot lights on the lit furniture (cd)
+const LAMP_POOL = 0.45;                                   // the same lamps on the baked floor (sunpatch.js)
 const LAMP_ANGLE = 0.78;                                  // rad, half the cone of a pendant's shade
 const LAMP_PENUMBRA = 0.75;
 const ROOM = { x: 52, z: 40, y0: -0.05, y1: 8 };          // hall: the shadow camera covers every room
@@ -285,17 +285,17 @@ export function createDaylight({ scene, renderer }) {
 
   function apply(p) {
     sun.color.setRGB(...p.sunC, THREE.SRGBColorSpace);
-    sun.intensity = p.sunI;
+    sun.intensity = p.sunI * 0.4;
     const el = THREE.MathUtils.degToRad(p.sunEl), az = THREE.MathUtils.degToRad(p.sunAz);
     dir.set(Math.cos(el) * Math.cos(az), Math.sin(el), Math.cos(el) * Math.sin(az));
     fitShadow();
-    hemi.color.setRGB(...p.hemiSky, THREE.SRGBColorSpace);
-    hemi.groundColor.setRGB(...p.hemiGnd, THREE.SRGBColorSpace);
-    hemi.intensity = p.hemiI;
-    fill.color.setRGB(...p.fillC, THREE.SRGBColorSpace);
-    fill.intensity = p.fillI;
-    scene.environmentIntensity = p.envI;
-    renderer.toneMappingExposure = p.exposure;
+    hemi.color.setRGB(0.95, 0.93, 0.9);
+    hemi.groundColor.setRGB(0.72, 0.7, 0.66);
+    hemi.intensity = Math.min(p.hemiI, 0.55);
+    fill.color.setRGB(1, 0.96, 0.9);
+    fill.intensity = Math.min(p.fillI, 0.14);
+    scene.environmentIntensity = 0.18;
+    renderer.toneMappingExposure = 0.9;
     uNight.value = p.bake;
     state.night = p.night;
     state.lampsK = p.lamps;
@@ -304,9 +304,9 @@ export function createDaylight({ scene, renderer }) {
       if (kind === 'lamp') mat.emissiveIntensity = p.lamps * 2.4;
       else if (kind === 'windows') mat.emissiveIntensity = p.windows * 1.7;
     }
-    for (const mat of baked) mat.color.setRGB(...(mat.userData.bqSurface === 'wall' ? p.wallTint : p.floorTint));
-    tmp.setRGB(...p.glassC, THREE.SRGBColorSpace);
-    for (const mat of glass) { mat.color.copy(tmp); mat.emissive.copy(tmp).multiplyScalar(p.glassE); mat.opacity = p.glassA; }
+    for (const mat of baked) mat.color.setRGB(...(mat.userData.bqSurface === 'wall' ? [0.86, 0.85, 0.83] : [0.9, 0.89, 0.86]));
+    tmp.setRGB(0.15, 0.2, 0.34);
+    for (const mat of glass) { mat.color.copy(tmp); mat.emissive.set(0, 0, 0); mat.opacity = Math.min(p.glassA, 0.35); }
     patch.update(dir, p.floorSunC, p.floorSun, 1 - p.bake);
   }
 

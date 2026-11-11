@@ -9,7 +9,7 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { GTAOPass } from 'three/addons/postprocessing/GTAOPass.js';
 import { BokehPass } from 'three/addons/postprocessing/BokehPass.js';
-import { StudioPass } from './studio.js?v=9';
+import { StudioPass } from './studio.js?v=10';
 import { FXAAShader } from 'three/addons/shaders/FXAAShader.js';
 
 const TiltShiftShader = {
@@ -79,7 +79,7 @@ export function createPost(renderer, scene, camera) {
   bokeh.enabled = false;
   composer.addPass(bokeh);
   // High threshold so the purple backdrop stays quiet and only lamps, screens and neon bloom.
-  const bloom = new UnrealBloomPass(new THREE.Vector2(size.x, size.y), 0.38, 0.35, 0.78);
+  const bloom = new UnrealBloomPass(new THREE.Vector2(size.x, size.y), 0.16, 0.25, 0.92);
   bloom.enabled = false;
   composer.addPass(bloom);
   const fxaa = new ShaderPass(FXAAShader);

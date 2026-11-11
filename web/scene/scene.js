@@ -5,20 +5,20 @@ import { CSS2DRenderer } from 'three/addons/renderers/CSS2DRenderer.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
-import { loadOfficeAssets } from './office.js?v=9';
-import { Building } from './building.js?v=9';
-import { createDaylight } from './daylight.js?v=9';
-import { createPost } from './post.js?v=9';
-import { studioCss } from './studio.js?v=9';
-import { Actor } from './actor.js?v=9';
-import { generateBlob } from './blobgen.js?v=9';
-import { Spring, clamp, REDUCED } from './spring.js?v=9';
-import { sofiaHour, fontsPromise } from './walls.js?v=9';
-import { applyDesks, tick as tickLife, ensureCat, petCat, sendMail, addressedTo, cullLabels } from './life.js?v=9';
-import { syncTeam, tickTeam, blockedDesk } from './modteam.js?v=9';
-import { spawnBeam, spawnTrail, tickPackets, setNetwork, tickNetwork } from './packets.js?v=9';
-import { useHall, layoutHall, buildHall, faceSign, tickFloor } from './rooms.js?v=9';
-import { initQuality, getQuality, isSoftGpu, tickPolish, ensureDust, tickDust, syncRug, accentFor } from './polish.js?v=9';
+import { loadOfficeAssets } from './office.js?v=10';
+import { Building } from './building.js?v=10';
+import { createDaylight } from './daylight.js?v=10';
+import { createPost } from './post.js?v=10';
+import { studioCss } from './studio.js?v=10';
+import { Actor } from './actor.js?v=10';
+import { generateBlob } from './blobgen.js?v=10';
+import { Spring, clamp, REDUCED } from './spring.js?v=10';
+import { sofiaHour, fontsPromise } from './walls.js?v=10';
+import { applyDesks, tick as tickLife, ensureCat, petCat, sendMail, addressedTo, cullLabels } from './life.js?v=10';
+import { syncTeam, tickTeam, blockedDesk } from './modteam.js?v=10';
+import { spawnBeam, spawnTrail, tickPackets, setNetwork, tickNetwork } from './packets.js?v=10';
+import { useHall, layoutHall, buildHall, faceSign, tickFloor } from './rooms.js?v=10';
+import { initQuality, getQuality, isSoftGpu, tickPolish, ensureDust, tickDust, syncRug, accentFor } from './polish.js?v=10';
 
 // Relative to the page (not the site root), so the office also works when it is published in a sub-folder, e.g.
 // https://bodila51.github.io/grokbot-wallpaper/office/ -> ../assets. Locally the page is at `/`, where this is /assets.
@@ -97,7 +97,7 @@ export function initScene(el, cbs = {}) {
   renderer.setPixelRatio(pixelRatio());
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.05;
+  renderer.toneMappingExposure = 0.9;
   renderer.setClearColor(0x000000, 0);
   renderer.domElement.className = 'hq-canvas';
   container.append(renderer.domElement);
@@ -109,7 +109,7 @@ export function initScene(el, cbs = {}) {
   scene = new THREE.Scene();
   const pmrem = new THREE.PMREMGenerator(renderer);
   scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
-  scene.environmentIntensity = 0.55;
+  scene.environmentIntensity = 0.2;
   // Poly Haven "studio_small_03" 1k, CC0. Replaces the procedural room once it arrives.
   new RGBELoader().load(`${ASSETS}/office/studio_small_03_1k.hdr`, (tex) => {
     tex.mapping = THREE.EquirectangularReflectionMapping;
@@ -419,7 +419,8 @@ function frameAll(snap) {
     minX = Math.min(minX, r.x - r.w / 2); maxX = Math.max(maxX, r.x + r.w / 2);
     minZ = Math.min(minZ, r.z - r.d / 2); maxZ = Math.max(maxZ, r.z + r.d / 2);
   }
-  aim((minX + maxX) / 2, 0.8, (minZ + maxZ) / 2, distanceFor(maxX - minX + 2.4, maxZ - minZ + 2.4), snap);
+  const fit = distanceFor(maxX - minX + 2.4, maxZ - minZ + 2.4);
+  aim((minX + maxX) / 2, 0.8, (minZ + maxZ) / 2, isPortraitPhone() ? Math.min(fit, 26) : fit, snap);
 }
 
 function frameDefault(snap) {

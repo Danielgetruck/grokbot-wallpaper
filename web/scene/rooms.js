@@ -1,7 +1,7 @@
 // One walled room per team, packed into a single hall. Group names are canvas text, drawn so Hebrew stays RTL.
 import * as THREE from 'three';
-import { isFamilyName, isLeadName, isMasterName } from './modteam.js?v=9';
-import { buildFurniture } from './furniture.js?v=9';
+import { isFamilyName, isLeadName, isMasterName } from './modteam.js?v=10';
+import { buildFurniture } from './furniture.js?v=10';
 
 const ACCENT = [0xc084fc, 0x22d3ee, 0xf0abfc, 0xa78bfa, 0x67e8f9, 0xe9d5ff, 0xfbbf24, 0x818cf8];
 
@@ -238,25 +238,28 @@ function addLounge(root, at) {
 
 let floorMat = null;
 
-function neonFloorMaterial() {
-  return new THREE.ShaderMaterial({
-    uniforms: { uTime: { value: 0 } },
-    vertexShader: `
-      varying vec2 vUv;
-      void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }
-    `,
-    fragmentShader: `
-      uniform float uTime;
-      varying vec2 vUv;
-      void main() {
-        vec2 tiles = vUv * vec2(16.0, 12.0);
-        vec2 f = fract(tiles);
-        float grout = smoothstep(0.035, 0.0, min(f.x, f.y)) + smoothstep(0.965, 1.0, max(f.x, f.y));
-        vec3 tile = vec3(0.46, 0.47, 0.50);
-        vec3 col = mix(tile, vec3(0.34, 0.35, 0.38), clamp(grout, 0.0, 1.0));
-        gl_FragColor = vec4(col, 1.0);
-      }
-    `,
+function whiteFloorMaterial() {
+  const c = document.createElement('canvas');
+  c.width = 512; c.height = 512;
+  const g = c.getContext('2d');
+  g.fillStyle = '#e7e2d8';
+  g.fillRect(0, 0, 512, 512);
+  g.strokeStyle = '#cfc8bc';
+  g.lineWidth = 3;
+  const tile = 64;
+  for (let i = 0; i <= 512; i += tile) {
+    g.beginPath();
+    g.moveTo(i, 0); g.lineTo(i, 512); g.stroke();
+    g.beginPath();
+    g.moveTo(0, i); g.lineTo(512, i); g.stroke();
+  }
+  const map = new THREE.CanvasTexture(c);
+  map.wrapS = map.wrapT = THREE.RepeatWrapping;
+  map.repeat.set(6, 5);
+  map.colorSpace = THREE.SRGBColorSpace;
+  map.anisotropy = 8;
+  return new THREE.MeshStandardMaterial({
+    map, color: 0xf3efe8, roughness: 0.58, metalness: 0.02, envMapIntensity: 0.15,
   });
 }
 
@@ -322,11 +325,11 @@ function addShell(root, cx, cz, fw, fd) {
   const frame = new THREE.MeshStandardMaterial({ color: 0xf4f1ea, roughness: 0.55, metalness: 0.04 });
   const metal = new THREE.MeshStandardMaterial({ color: 0xc5cad3, roughness: 0.28, metalness: 0.72 });
   const glass = new THREE.MeshPhysicalMaterial({
-    color: 0xc5d8f0, roughness: 0.08, metalness: 0.05, transparent: true, opacity: 0.38,
-    emissive: 0x8eb4e8, emissiveIntensity: 0.12, side: THREE.DoubleSide, depthWrite: false,
+    color: 0x1a2744, roughness: 0.15, metalness: 0.04, transparent: true, opacity: 0.22,
+    emissive: 0x000000, emissiveIntensity: 0, side: THREE.DoubleSide, depthWrite: false,
   });
   const view = nightViewTexture();
-  const outside = new THREE.MeshBasicMaterial({ map: view, side: THREE.DoubleSide });
+  const outside = new THREE.MeshBasicMaterial({ map: view, side: THREE.DoubleSide, toneMapped: true });
   const neon = new THREE.MeshBasicMaterial({ color: 0xc084fc, transparent: true, opacity: 0.75, blending: THREE.AdditiveBlending, depthWrite: false });
   neonStrips = [];
 
@@ -413,7 +416,6 @@ function addShell(root, cx, cz, fw, fd) {
 }
 
 export function tickFloor(t) {
-  if (floorMat) floorMat.uniforms.uTime.value = t;
   const pulse = 0.45 + 0.35 * (0.5 + 0.5 * Math.sin(t * 1.6));
   for (const s of neonStrips) if (s.material) s.material.opacity = pulse;
   const stars = floorMat && floorMat.userData.stars;
@@ -432,7 +434,7 @@ export function buildHall(parent, layout) {
   const pad = 1.8;
   const fw = (b.maxX - b.minX) + pad * 2;
   const fd = (b.maxZ - b.minZ) + pad * 2;
-  floorMat = neonFloorMaterial();
+  floorMat = whiteFloorMaterial();
   const floor = new THREE.Mesh(new THREE.PlaneGeometry(fw, fd), floorMat);
   floor.rotation.x = -Math.PI / 2;
   floor.position.set((b.minX + b.maxX) / 2, 0.01, (b.minZ + b.maxZ) / 2);
