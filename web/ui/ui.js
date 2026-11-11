@@ -511,7 +511,7 @@ function buildTopbar(root) {
   const demo = h('span', { class: 'bhq-demo bhq-surface', text: 'DEMO', hidden: true, title: 'Demo data, not real bots' });
   // share an image of the office (web/share/, loaded on first use); audio/sound.js puts the speaker in front of it
   const share = h('button', { class: 'bhq-share bhq-surface', type: 'button', 'aria-label': 'Share an image of your office', title: 'Share', 'aria-haspopup': 'dialog', 'aria-expanded': 'false' }, svg(ICON.share));
-  const loadShare = () => import('../share/share.js?v=9');
+  const loadShare = () => import('../share/share.js?v=11');
   share.addEventListener('pointerenter', loadShare, { once: true });
   share.addEventListener('click', () => {
     loadShare().then((m) => m.toggleShare({ anchor: share, state: U.last.state }), (err) => console.warn('[ui] share', err));

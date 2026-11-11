@@ -3,9 +3,9 @@
 // their eyes follow it, they hop when the cursor is within ~0.9 m. Everything moves on springs.
 import * as THREE from 'three';
 import { CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
-import { Spring, REDUCED, clamp, smoothstep } from './spring.js?v=9';
-import { createWorker } from './worker.js?v=9';
-import { isLeadName } from './modteam.js?v=9';
+import { Spring, REDUCED, clamp, smoothstep } from './spring.js?v=11';
+import { createWorker } from './worker.js?v=11';
+import { isLeadName } from './modteam.js?v=11';
 
 export const STATUS_COLOR = {
   working: '#34C759', idle: '#A1A1A6', waiting_user: '#FF9F0A', error: '#FF3B30', stuck: '#FF9500', done: '#0A84FF',
@@ -369,7 +369,7 @@ export class Actor {
       if (dist < LOOK_RANGE) { w = smoothstep(LOOK_RANGE, LOOK_RANGE - 1.3, dist); lookYaw = Math.atan2(dx, dz); }
     }
     this.hopCooldown -= dt;
-    if (dist < HOP_RANGE && this.hopCooldown <= 0 && !this.anim && !REDUCED) { this.hop(0.26); this.hopCooldown = HOP_COOLDOWN; }
+    if (!this.worker && dist < HOP_RANGE && this.hopCooldown <= 0 && !this.anim && !REDUCED) { this.hop(0.26); this.hopCooldown = HOP_COOLDOWN; }
 
     const base = (this.baseYaw || 0) + (this.anim?.kind === 'travel' ? 0 : RESTING_TURN);
     let target = base;
@@ -400,7 +400,7 @@ export class Actor {
     const pulse = s === 'working' ? 0.14 + 0.05 * Math.sin(t * 3 + this.phase)
       : s === 'waiting_user' || s === 'error' ? 0.4 + 0.25 * (0.5 + 0.5 * Math.sin(t * 5))
       : s === 'stuck' ? 0.3 + 0.15 * Math.sin(t * 2) : 0;
-    const wantRing = this.selected ? 0.8 : this.hovered ? Math.max(0.4, pulse) : pulse;
+    const wantRing = this.worker ? 0 : this.selected ? 0.8 : this.hovered ? Math.max(0.4, pulse) : pulse;
     this.ring.material.opacity = wantRing * clamp(sc, 0, 1);
     this.ring.scale.setScalar(this.selected ? 1.12 : 1);
     if (this.fx) this.tickCelebration(dt);
@@ -418,7 +418,14 @@ export class Actor {
     const w = this.worker;
     if (!w) return;
     const s = this.status;
-    const typing = s === 'working' && !REDUCED;
+    const on = s === 'working' || s === 'active' || s === 'busy';
+    if (w.beacon) {
+      const hex = on ? 0x22c55e : 0xef4444;
+      w.beacon.material.color.setHex(hex);
+      w.beacon.material.emissive.setHex(hex);
+      w.beacon.material.emissiveIntensity = on ? 1.25 : 0.75;
+    }
+    const typing = on && !REDUCED;
     const look = s === 'idle' && !REDUCED ? Math.sin(t * 0.45 + this.phase) * 0.4 : 0;
     w.head.rotation.y = look;
     w.head.rotation.x = typing ? 0.12 : 0.04;

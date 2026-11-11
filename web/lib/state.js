@@ -1,6 +1,6 @@
 // State reducer: journal records -> CONTRACT §4 state. Pure in-memory, clock injectable for tests. Runs in Node (the
 // server) and in the browser (the office reading a bots channel on ntfy.sh), so: no Node-only APIs here.
-import { slugify, hashColor, cleanStr, makeTime, parseTime } from './util.js?v=9';
+import { slugify, hashColor, cleanStr, makeTime, parseTime } from './util.js?v=11';
 
 export const LIMITS = {
   MAX_PER_FLOOR: 80,
