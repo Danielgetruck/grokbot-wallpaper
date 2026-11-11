@@ -1,7 +1,7 @@
 // Live wall screen ("Today · <floor>") and task board, drawn on canvases that texture the meshes
 // `wall_screen` and `task_board` of the open floor (CONTRACT v2.5). Redrawn only when the data changes (≤ 1/s).
 import * as THREE from 'three';
-import { sharpTexture } from './tex.js?v=18';
+import { sharpTexture } from './tex.js?v=19';
 
 const FONT = 'Inter, system-ui, -apple-system, "Segoe UI", sans-serif';
 const STATUS = { working: '#34C759', waiting_user: '#FF9F0A', error: '#FF3B30', stuck: '#FF9500', done: '#0A84FF', idle: '#A1A1A6' };

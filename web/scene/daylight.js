@@ -14,8 +14,8 @@
 // declination +10°, solar noon 12:40: 07:15 morning, 13:00 day, 18:50 sunset, 23:00 night), the same on every date;
 // ?time=18:50&real=1 = today's real sun at that time; ?time=auto or setTime(null) = the live clock.
 import * as THREE from 'three';
-import { smoothstep, lerp, clamp } from './spring.js?v=18';
-import { createSunPatch } from './sunpatch.js?v=18';
+import { smoothstep, lerp, clamp } from './spring.js?v=19';
+import { createSunPatch } from './sunpatch.js?v=19';
 
 const rgb = (hex) => { const c = new THREE.Color(hex); c.convertLinearToSRGB(); return [c.r, c.g, c.b]; };
 

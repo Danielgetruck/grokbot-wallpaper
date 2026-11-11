@@ -178,6 +178,11 @@ html.hq-quiet.hq-show-more .bhq-dock { display: flex !important; }
   padding: 4px 10px; border-radius: 999px; pointer-events: none;
   background: #FF9F0A; color: #1D1D1F; font: 800 12px/1.2 var(--font); letter-spacing: .02em;
 }
+.hq-locked {
+  position: fixed; z-index: 40; inset: 0; display: grid; place-items: center;
+  margin: 0; padding: 24px; text-align: center;
+  background: #07111c; color: #d5deea; font: 650 18px/1.4 var(--font);
+}
 .bhq-surface { border: 1px solid rgba(125, 190, 255, .28); }
 
 /* Solid panels when the OS asks for less transparency. */
