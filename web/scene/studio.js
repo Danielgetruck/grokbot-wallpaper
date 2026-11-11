@@ -17,8 +17,8 @@ import { Pass, FullScreenQuad } from 'three/addons/postprocessing/Pass.js';
 export const STUDIO = {
   centre: [0.48, 0.42],                                   // where the violet pools (fraction of the frame, y down)
   radii: [0.86, 0.8],                                     // ellipse the fall-off reaches its edge colour at
-  stops: [[0, '#5B21B6'], [0.42, '#2A1058'], [1, '#070412']],
-  shadow: '#14081C',                                      // deep plum, never a flat grey
+  stops: [[0, '#100e18'], [0.42, '#08070d'], [1, '#030208']],
+  shadow: '#05040a',
   layers: [                                               // sigma (px), push down (px), strength at the silhouette edge
     { sigma: 4, down: 2, w: 0.40 },                       // contact: a thin dark seam that grounds the edge
     { sigma: 30, down: 22, w: 0.40 },                     // penumbra: the body of the aura
@@ -82,10 +82,6 @@ const COMPOSE_FS = /* glsl */`
     float dens = 1.0 - ( 1.0 - a0 ) * ( 1.0 - a1 ) * ( 1.0 - a2 );
     dens *= 1.0 - smoothstep( 0.5, 0.9, texture2D( tHold, vUv ).r );    // nothing inside the silhouette: clear glass stays clear
     bg = mix( bg, shadowC, dens );
-
-    // a soft violet pool behind the office; uPulse breathes it (0..1)
-    float gd = length( ( vUv - vec2( 0.47, 0.56 ) ) / vec2( 0.40, 0.34 ) );
-    bg += vec3( 0.62, 0.26, 1.0 ) * exp( -2.2 * gd * gd ) * ( 0.22 + 0.28 * uPulse );
 
     vec3 rgb = c.rgb + bg * ( 1.0 - c.a );                              // c is premultiplied
     float n = hash( gl_FragCoord.xy ) + hash( gl_FragCoord.xy + 17.31 ) - 1.0;   // triangular dither, +-1 level

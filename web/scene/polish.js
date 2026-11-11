@@ -1,6 +1,6 @@
 // Room dressing and the quality switch. Decor is static geometry. Dust drifts only while the tab is drawing.
 import * as THREE from 'three';
-import { REDUCED } from './spring.js?v=11';
+import { REDUCED } from './spring.js?v=12';
 
 const KEY = 'bothq.quality';
 let level = 'high';
