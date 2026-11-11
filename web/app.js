@@ -190,7 +190,7 @@ function startModDemo() {
         status, effective_status: status,
         step: status === 'working' ? 'demo: checking the queue' : status === 'waiting_user' ? 'demo: need a look' : '',
         since: new Date(Date.now() - (gi * 5 + i) * 60000).toISOString(),
-        last_event: new Date().toISOString(), color: '#C4B5FD', look: null, history: [],
+        last_event: new Date().toISOString(), color: '#5B8DEF', look: null, history: [],
       };
     });
     return { id, name, order: gi + 1, bots: members.map((_, i) => `${id}-${i}`) };

@@ -122,7 +122,7 @@ export function initScene(el, cbs = {}) {
 
   daylight = createDaylight({ scene, renderer });
   initQuality(renderer);
-  document.documentElement.dataset.sky = 'studio';        // white backdrop at every hour: the UI stays on light glass (web/styles.css)
+  document.documentElement.dataset.sky = 'studio';        // backdrop is the studio pass; the glass UI stays on its own tokens (web/styles.css)
   container.style.background = studioCss();               // the same backdrop as the post pass draws, for the first moments
 
   camera = new THREE.PerspectiveCamera(38, 1, 0.15, 520);
@@ -200,7 +200,7 @@ function sync() {
   const floor = hall ? { id: '_hall', name: 'Hall' } : floors.find((f) => f.id === building.activeId);
   let hallPlan = null;
   if (hall) {
-    const key = floors.map((f) => `${f.id}:${floorBots.filter((b) => b.floor === f.id).length}`).join('|');
+    const key = floorBots.map((b) => `${b.id}:${b.name || ''}`).sort().join('|');
     if (inst.hallKey !== key) {
       inst.hallKey = key;
       hallPlan = layoutHall(floors, floorBots);
@@ -267,7 +267,7 @@ function sync() {
       const to = other && actors.get(other.id);
       if (to) {
         sendMail(actor.root.position, to.root.position, inst.root);
-        spawnTrail(inst.root, actor.root.position, 0xc4b5fd);
+        spawnTrail(inst.root, actor.root.position, 0x7dd3fc);
       }
     }
   }

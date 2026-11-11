@@ -6,10 +6,13 @@ import { spawnArc, spawnRipple, setStaticLinks } from './packets.js?v=12';
 
 const LEAD = new THREE.Vector3(2.4, 0.42, -1.2);
 const FAMILY = /^mod/i;
+const NUMBERED = /^mod\d+$/i;
 
 export function isLeadName(name) { return /^mod$/i.test(String(name || '').trim()); }
 export function isFamilyName(name) { return FAMILY.test(String(name || '').trim()); }
 export function isMasterName(name) { return /^master$/i.test(String(name || '').trim()); }
+/** MoD2, Mod5, MOD7: "mod" and then only a number. Not the head, and not a name that merely starts with mod. */
+export function isNumberedModName(name) { return NUMBERED.test(String(name || '').trim()); }
 
 export function isModFloor(floor, bots) {
   const label = `${floor?.name || ''} ${floor?.id || ''}`;

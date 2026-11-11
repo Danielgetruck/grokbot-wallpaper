@@ -212,7 +212,7 @@ export function sendMail(from, to, parent) {
   if (mail.length > 2) return;
   const m = new THREE.Mesh(
     new THREE.PlaneGeometry(0.2, 0.13),
-    new THREE.MeshBasicMaterial({ color: 0xf6ecff, side: THREE.DoubleSide }),
+    new THREE.MeshBasicMaterial({ color: 0xe7f3ff, side: THREE.DoubleSide }),
   );
   m.position.copy(from);
   m.position.y = 1.05;
@@ -265,7 +265,7 @@ function tickCat(inst, dt, t) {
 }
 
 function makeCat() {
-  const fur = new THREE.MeshStandardMaterial({ color: 0x3a314c, roughness: 0.72 });
+  const fur = new THREE.MeshStandardMaterial({ color: 0x3a4454, roughness: 0.72 });
   const g = new THREE.Group();
   g.name = 'office_cat';
   const body = new THREE.Mesh(new THREE.SphereGeometry(0.16, 14, 10), fur);

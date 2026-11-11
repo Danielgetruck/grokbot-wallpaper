@@ -91,7 +91,7 @@ export function createWorker({ color, lead = false } = {}) {
     mic.position.set(0.06, -0.04, 0.08);
     headPivot.add(cup, mic);
     const badge = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.05, 0.008), new THREE.MeshStandardMaterial({
-      color: 0xf5e6ff, emissive: 0xe9d5ff, emissiveIntensity: 0.8, roughness: 0.3,
+      color: 0xe6f4ff, emissive: 0x7dd3fc, emissiveIntensity: 0.8, roughness: 0.3,
     }));
     badge.position.set(0.08, 0.78, 0.16);
     g.add(badge);

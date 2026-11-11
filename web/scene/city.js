@@ -6,8 +6,8 @@ const SKY_FS = /* glsl */`
   varying vec3 vDir;
   void main() {
     float h = normalize(vDir).y;
-    vec3 top = vec3(0.015, 0.012, 0.03);
-    vec3 hor = vec3(0.10, 0.07, 0.18);
+    vec3 top = vec3(0.012, 0.02, 0.05);
+    vec3 hor = vec3(0.04, 0.10, 0.22);
     vec3 col = mix(hor, top, smoothstep(-0.05, 0.55, h));
     vec3 cell = floor(normalize(vDir) * 220.0);
     float n = fract(sin(dot(cell.xy + cell.yz, vec2(12.9898, 78.233))) * 43758.5453);
@@ -32,7 +32,7 @@ const TOWER_FS = /* glsl */`
     vec3 lamp = mix(warm, cool, step(0.62, vSeed));
     vec3 col = mix(body, lamp, win * lit * 0.9);
     float fogF = clamp(1.0 - exp(-0.006 * length(vWorld)), 0.0, 0.72);
-    gl_FragColor = vec4(mix(col, vec3(0.05, 0.04, 0.08), fogF), 1.0);
+    gl_FragColor = vec4(mix(col, vec3(0.03, 0.05, 0.10), fogF), 1.0);
   }
 `;
 

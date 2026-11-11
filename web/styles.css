@@ -60,10 +60,10 @@
   --alert-ink: color-mix(in srgb, #FFC266 var(--n), #9A5B00);
   --alert-strong: color-mix(in srgb, #FFD590 var(--n), #7A4600);
 
-  /* page + scene backdrop: black into violet in both day and night (the WebGL studio pass uses the same stops) */
-  --bg-0: #100e18;
-  --bg-1: #08070d;
-  --bg-2: #030208;
+  /* page + scene backdrop: deep navy into near-black in both day and night (the WebGL studio pass uses the same stops) */
+  --bg-0: color-mix(in srgb, #12325c var(--n), #1B4E8C);
+  --bg-1: color-mix(in srgb, #071422 var(--n), #0C2348);
+  --bg-2: color-mix(in srgb, #02060c var(--n), #050910);
 
   /* layout */
   --gutter: 24px;
@@ -102,8 +102,8 @@
   position: fixed; z-index: 24; left: 50%; bottom: 64px; transform: translateX(-50%);
   width: min(380px, calc(100vw - 2 * var(--gutter)));
   padding: 10px 12px 8px; border-radius: 16px; pointer-events: auto;
-  background: rgba(22, 16, 34, .88); color: #F4EEFF;
-  border: 1px solid rgba(196, 170, 255, .35);
+  background: rgba(8, 18, 36, .88); color: #E8F3FF;
+  border: 1px solid rgba(125, 190, 255, .4);
   box-shadow: 0 10px 28px rgba(0, 0, 0, .35);
   font: 600 13px/1.3 var(--font);
 }
@@ -126,7 +126,7 @@
 .hq-ticker {
   position: fixed; z-index: 18; left: 50%; bottom: 14px; transform: translateX(-50%);
   width: min(640px, calc(100vw - 420px)); height: 32px; overflow: hidden; pointer-events: none;
-  color: #E6D9FF; font: 500 12px/32px var(--font);
+  color: #D5E8FF; font: 500 12px/32px var(--font);
   mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent);
 }
 .hq-ticker-track { display: flex; gap: 22px; white-space: nowrap; width: max-content; animation: hq-tick 36s linear infinite; }
@@ -153,14 +153,14 @@ html.hq-quiet.hq-show-more .bhq-dock { display: flex !important; }
   display: flex; gap: 8px; align-items: center; pointer-events: auto;
 }
 .hq-floors, .hq-tool {
-  background: rgba(18, 12, 28, .88); color: #F4EEFF;
-  border: 1px solid rgba(196, 170, 255, .45); border-radius: 999px;
+  background: rgba(8, 18, 36, .88); color: #E8F3FF;
+  border: 1px solid rgba(125, 190, 255, .45); border-radius: 999px;
   font-family: var(--font); font-size: 13px; font-weight: 650; line-height: 1.2;
   backdrop-filter: blur(16px);
 }
 .hq-floors { display: flex; padding: 3px; gap: 2px; max-width: min(70vw, 520px); overflow-x: auto; }
 .hq-floors button, .hq-tool {
-  border: 0; background: transparent; color: #F4EEFF; cursor: pointer;
+  border: 0; background: transparent; color: #E8F3FF; cursor: pointer;
   padding: 7px 12px; border-radius: 999px;
   font-family: inherit; font-size: 13px; font-weight: 650; line-height: 1.2;
   white-space: nowrap;
@@ -169,16 +169,16 @@ html.hq-quiet.hq-show-more .bhq-dock { display: flex !important; }
 @media (max-width: 760px) {
   .hq-tools { top: 58px; left: 8px; right: 8px; justify-content: flex-end; }
 }
-.hq-floors button[aria-current="true"] { background: #F4EEFF; color: #1B1028; }
-.hq-tool { border: 1px solid rgba(196, 170, 255, .35); background: rgba(18, 12, 28, .78); }
-.hq-tool[aria-pressed="true"] { background: #F4EEFF; color: #1B1028; }
+.hq-floors button[aria-current="true"] { background: #E8F3FF; color: #0C1C30; }
+.hq-tool { border: 1px solid rgba(125, 190, 255, .4); background: rgba(8, 18, 36, .78); }
+.hq-tool[aria-pressed="true"] { background: #E8F3FF; color: #0C1C30; }
 .hq-ticker { opacity: .72; }
 .hq-demo {
   position: fixed; z-index: 30; top: 8px; left: 50%; transform: translateX(-50%);
   padding: 4px 10px; border-radius: 999px; pointer-events: none;
   background: #FF9F0A; color: #1D1D1F; font: 800 12px/1.2 var(--font); letter-spacing: .02em;
 }
-.bhq-surface { border: 1px solid rgba(196, 170, 255, .28); }
+.bhq-surface { border: 1px solid rgba(125, 190, 255, .28); }
 
 /* Solid panels when the OS asks for less transparency. */
 @media (prefers-reduced-transparency: reduce) {
@@ -220,11 +220,11 @@ body {
 #scene:active { cursor: grabbing; }
 #scene.is-hovering { cursor: pointer; }
 #scene canvas { display: block; width: 100%; height: 100%; }
-/* violet pool over the studio backdrop; the panels sit above #scene so this does not wash the UI */
+/* soft cyan pool over the studio backdrop; the panels sit above #scene so this does not wash the UI */
 #scene::after {
   content: "";
   position: absolute; inset: 0; z-index: 2; pointer-events: none;
-  background: radial-gradient(ellipse 52% 44% at 48% 44%, rgba(167, 85, 247, .16), transparent 68%);
+  background: radial-gradient(ellipse 52% 44% at 48% 44%, rgba(56, 189, 248, .12), transparent 68%);
   mix-blend-mode: screen;
   animation: bq-glow 8s ease-in-out infinite;
 }
@@ -235,7 +235,7 @@ body {
 .hq-labels { position: absolute; inset: 0; pointer-events: none; }
 .hq-loading {
   position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
-  font-size: 13px; color: #EDE4FF; letter-spacing: .02em;
+  font-size: 13px; color: #E7F3FF; letter-spacing: .02em;
 }
 
 /* Overlay containers never block the scene; only the panels inside them take pointer events. */

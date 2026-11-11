@@ -15,10 +15,10 @@ import { Pass, FullScreenQuad } from 'three/addons/postprocessing/Pass.js';
 // All distances are CSS px at a 1080 px tall frame; they scale with the frame height and with the camera zoom
 // (the aura belongs to the building, so it grows and shrinks with it).
 export const STUDIO = {
-  centre: [0.48, 0.42],                                   // where the violet pools (fraction of the frame, y down)
+  centre: [0.48, 0.42],                                   // where the blue pools (fraction of the frame, y down)
   radii: [0.86, 0.8],                                     // ellipse the fall-off reaches its edge colour at
-  stops: [[0, '#100e18'], [0.42, '#08070d'], [1, '#030208']],
-  shadow: '#05040a',
+  stops: [[0, '#1B4E8C'], [0.42, '#0C2348'], [1, '#050910']],
+  shadow: '#07111C',                                      // deep navy, never a flat grey
   layers: [                                               // sigma (px), push down (px), strength at the silhouette edge
     { sigma: 4, down: 2, w: 0.40 },                       // contact: a thin dark seam that grounds the edge
     { sigma: 30, down: 22, w: 0.40 },                     // penumbra: the body of the aura
@@ -82,6 +82,10 @@ const COMPOSE_FS = /* glsl */`
     float dens = 1.0 - ( 1.0 - a0 ) * ( 1.0 - a1 ) * ( 1.0 - a2 );
     dens *= 1.0 - smoothstep( 0.5, 0.9, texture2D( tHold, vUv ).r );    // nothing inside the silhouette: clear glass stays clear
     bg = mix( bg, shadowC, dens );
+
+    // a soft cyan pool behind the office; uPulse breathes it (0..1)
+    float gd = length( ( vUv - vec2( 0.47, 0.56 ) ) / vec2( 0.40, 0.34 ) );
+    bg += vec3( 0.22, 0.58, 1.0 ) * exp( -2.4 * gd * gd ) * ( 0.10 + 0.14 * uPulse );
 
     vec3 rgb = c.rgb + bg * ( 1.0 - c.a );                              // c is premultiplied
     float n = hash( gl_FragCoord.xy ) + hash( gl_FragCoord.xy + 17.31 ) - 1.0;   // triangular dither, +-1 level
