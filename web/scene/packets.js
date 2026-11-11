@@ -143,7 +143,13 @@ export function setNetwork(parent, pairs) {
   const key = pairs.map((p) => `${p.a.x.toFixed(1)},${p.a.z.toFixed(1)}>${p.b.x.toFixed(1)},${p.b.z.toFixed(1)}:${p.lift || 0}:${(p.via || []).map((v) => `${v.x.toFixed(1)},${v.z.toFixed(1)}`).join(';')}`).join('|');
   if (key === netKey && netGroup?.parent === parent) return;
   netKey = key;
-  if (netGroup) { netGroup.removeFromParent(); netGroup.traverse((o) => { if (o.geometry) o.geometry.dispose(); }); }
+  if (netGroup) {
+    netGroup.removeFromParent();
+    netGroup.traverse((o) => {
+      if (o.geometry) o.geometry.dispose();
+      if (o.material?.uniforms) o.material.dispose();
+    });
+  }
   netGroup = new THREE.Group();
   netGroup.name = 'fx-network';
   flows = [];
@@ -154,26 +160,62 @@ export function setNetwork(parent, pairs) {
     const b = p.b.clone(); b.y = 0.4;
     const curve = arcCurve(a, b, p.lift || 1.35, p.via);
     const thick = p.wide ? 0.07 : 0.035;
+    const dash = dashMaterial();
     netGroup.add(new THREE.Mesh(new THREE.TubeGeometry(curve, 18, thick, 5, false), glow));
     netGroup.add(new THREE.Mesh(new THREE.TubeGeometry(curve, 18, thick * 0.38, 5, false), core));
-    flows.push({ curve, k: Math.random(), id: p.id || '', speed: 0.22, color: 0x7c3aed, scale: 2.4 });
+    netGroup.add(new THREE.Mesh(new THREE.TubeGeometry(curve, 24, thick * 0.5, 5, false), dash));
+    flows.push({ curve, k: Math.random(), id: p.id || '', speed: 0.22, color: 0x7c3aed, scale: 2.4, dash, on: false });
   }
   parent.add(netGroup);
 }
 
-/** Per-link pace. Working bots send faster, brighter pulses toward Master. */
+/** Per-link pace. A live bot gets green dashes inside the purple tube, moving toward Master. */
 export function setFlowPace(pace) {
   for (const f of flows) {
     const on = !!(pace && pace.get(f.id));
-    f.speed = on ? 0.9 : 0.18;
-    f.color = on ? 0xd8b4fe : 0x6d28d9;
-    f.scale = on ? 4.6 : 2.3;
+    f.on = on;
+    f.speed = on ? 0.9 : 0;
+    f.color = on ? 0x22c55e : 0x6d28d9;
+    f.scale = on ? 0 : 0;
+    if (f.dash) f.dash.uniforms.uOn.value = on ? 1 : 0;
   }
+}
+
+let netTime = 0;
+
+function dashMaterial() {
+  return new THREE.ShaderMaterial({
+    uniforms: { uTime: { value: 0 }, uOn: { value: 0 } },
+    transparent: true,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+    side: THREE.DoubleSide,
+    vertexShader: `
+      varying vec2 vUv;
+      void main() {
+        vUv = uv;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+      }
+    `,
+    fragmentShader: `
+      uniform float uTime;
+      uniform float uOn;
+      varying vec2 vUv;
+      void main() {
+        if (uOn < 0.5) discard;
+        float dash = fract(vUv.x * 16.0 - uTime * 0.55);
+        float on = step(dash, 0.34);
+        gl_FragColor = vec4(0.25, 1.0, 0.48, on * 0.95);
+      }
+    `,
+  });
 }
 
 export function tickNetwork(dt) {
   if (!mesh || !flows.length) return;
+  netTime += dt;
   flows.forEach((f, i) => {
+    if (f.dash) f.dash.uniforms.uTime.value = netTime;
     if (i >= MAX) return;
     f.k = (f.k + dt * (f.speed || 0.2)) % 1;
     const p = f.curve.getPoint(f.k);

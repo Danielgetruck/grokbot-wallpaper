@@ -2,8 +2,8 @@
 // and the occasional envelope. Feed text is drawn with canvas fillText or textContent, never HTML.
 import * as THREE from 'three';
 import { CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
-import { REDUCED } from './spring.js?v=13';
-import { spawnRipple } from './packets.js?v=13';
+import { REDUCED } from './spring.js?v=14';
+import { spawnRipple } from './packets.js?v=14';
 
 const LIGHT = {
   working: { hex: 0xb7dcff, em: 2.1 },

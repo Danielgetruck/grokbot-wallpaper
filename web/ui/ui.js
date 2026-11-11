@@ -25,6 +25,8 @@
  * back when the window grows. ?sheet=open starts with the sheet expanded (for screenshots).
  */
 
+import { isWorking } from '../lib/live.js?v=14';
+
 // Resolved against this file, so it works from /web/index.html, from a server rooted at web/, and from the harness.
 const THUMB_BASE = new URL('../../assets/blobs/thumbs/', import.meta.url).href;
 // the product logo, exactly as is (a 400x400 square), shown small in the brand pill
@@ -349,8 +351,13 @@ function counts(state) {
   const bots = state.bots;
   if (bots && typeof bots === 'object' && Object.keys(bots).length) {
     for (const id of Object.keys(bots)) {
-      const s = effStatus(bots[id]);
-      out[s] = (out[s] || 0) + 1;
+      const bot = bots[id];
+      if (isWorking(bot)) out.working++;
+      else {
+        const s = effStatus(bot);
+        const key = s === 'working' ? 'idle' : s;
+        out[key] = (out[key] || 0) + 1;
+      }
     }
   } else if (state.summary && typeof state.summary === 'object') {
     for (const s of Object.keys(out)) out[s] = Number(state.summary[s]) || 0;
@@ -512,7 +519,7 @@ function buildTopbar(root) {
   const demo = h('span', { class: 'bhq-demo bhq-surface', text: 'DEMO', hidden: true, title: 'Demo data, not real bots' });
   // share an image of the office (web/share/, loaded on first use); audio/sound.js puts the speaker in front of it
   const share = h('button', { class: 'bhq-share bhq-surface', type: 'button', 'aria-label': 'Share an image of your office', title: 'Share', 'aria-haspopup': 'dialog', 'aria-expanded': 'false' }, svg(ICON.share));
-  const loadShare = () => import('../share/share.js?v=13');
+  const loadShare = () => import('../share/share.js?v=14');
   share.addEventListener('pointerenter', loadShare, { once: true });
   share.addEventListener('click', () => {
     loadShare().then((m) => m.toggleShare({ anchor: share, state: U.last.state }), (err) => console.warn('[ui] share', err));
@@ -1336,8 +1343,9 @@ function renderTeam(state, floor, o) {
   const n = ids.length;
   let working = 0, waiting = 0, errors = 0;
   for (const id of ids) {
-    const s = effStatus(bots[id]);
-    if (s === 'working') working++;
+    const bot = bots[id];
+    const s = effStatus(bot);
+    if (isWorking(bot)) working++;
     else if (s === 'waiting_user' || s === 'stuck') waiting++;
     else if (s === 'error') errors++;
   }

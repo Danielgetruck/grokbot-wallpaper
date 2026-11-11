@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { StateStore, normalizeStatus, botIdFor, normLook, LOOK_SHAPES, LOOK_ACCESSORIES, LIMITS } from '../state.js';
+import { isWorking, RECENT_MS } from '../../web/lib/live.js';
 import { SHAPES, ACCESSORIES } from '../../web/scene/looks.js';
 import { slugify } from '../util.js';
 
@@ -37,6 +38,41 @@ test('status synonyms and unknown handling', () => {
   assert.equal(normalizeStatus('whatever', false, 'error'), 'error');
   assert.equal(normalizeStatus(undefined, false), 'idle');
   assert.equal(normalizeStatus(42, true), 'working');
+  assert.equal(normalizeStatus('running', false), 'working');
+  assert.equal(normalizeStatus('active', false), 'working');
+  assert.equal(normalizeStatus('busy', false), 'working');
+  assert.equal(normalizeStatus('offline', false), 'idle');
+});
+
+test('post_status lines: type status, state/running, and a recent working Master stays green', () => {
+  const { store, clock } = make();
+  const now = clock.get();
+  store.apply({ type: 'status', bot: 'Master', status: 'running', step: 'checking the queue', t: new Date(now).toISOString() });
+  store.apply({ type: 'post_status', name: 'Lane', state: 'idle', text: '', t: new Date(now).toISOString() });
+  store.apply({ bot: 'MoD', status: 'waiting_user', step: 'need a look', t: new Date(now).toISOString() });
+  store.apply({ bot: 'QA', status: 'done', step: 'sent', t: new Date(now).toISOString() });
+  store.apply({ bot: 'Porter', status: 'offline', step: '', t: new Date(now).toISOString() });
+  store.apply({ bot: 'Noa', status: 'active', step: 'passing a note', to: 'Master', t: new Date(now - 5 * MIN).toISOString() });
+  store.commit();
+  const st = store.snapshot();
+  assert.equal(st.bots.master.status, 'working');
+  assert.equal(st.bots.master.effective_status, 'working');
+  assert.equal(st.bots.lane.status, 'idle');
+  assert.equal(st.bots.mod.status, 'waiting_user');
+  assert.equal(st.bots.qa.status, 'done');
+  assert.equal(st.bots.porter.status, 'idle');
+  assert.equal(st.bots.noa.status, 'working');
+  assert.equal(st.feed.find((f) => f.name === 'Noa').to, 'Master');
+  assert.equal(isWorking(st.bots.master, now), true);
+  assert.equal(isWorking(st.bots.lane, now), false);
+  assert.equal(isWorking(st.bots.mod, now), false);
+  assert.equal(isWorking(st.bots.qa, now), false);
+  assert.equal(isWorking(st.bots.porter, now), false);
+  assert.equal(isWorking(st.bots.noa, now), true);
+  const stale = { status: 'working', effective_status: 'idle', last_event: new Date(now - RECENT_MS - MIN).toISOString() };
+  assert.equal(isWorking(stale, now), false);
+  const fresh = { status: 'working', effective_status: 'idle', last_event: new Date(now - 2 * MIN).toISOString() };
+  assert.equal(isWorking(fresh, now), true);
 });
 
 test('stuck: working with no event for > 30 min; version bumps on the timer alone', () => {

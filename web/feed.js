@@ -20,8 +20,8 @@
 // On top of the server's state the office gets state.finished (done lines of the last 24 h, newest first),
 // state.routines (every bot's routines, soonest first) and state.check (the latest status check: who has answered), for
 // the «Finished», «Routines» and «Status check» panels.
-import { StateStore, botIdFor } from './lib/state.js?v=13';
-import { FEED_BASE, feedFromLink } from './lib/feedbase.js?v=13';
+import { StateStore, botIdFor } from './lib/state.js?v=14';
+import { FEED_BASE, feedFromLink } from './lib/feedbase.js?v=14';
 
 const RELAY = 'https://relay.0xcodila.com', NTFY = 'https://ntfy.sh';
 const MAX_LINE = 4096, KEEP = 600, TICK_MS = 30e3, DAY_MS = 24 * 3600e3, PING_MS = 60e3;
@@ -128,11 +128,28 @@ export async function connectFeed({ topic, servers }, onState) {
       if (changed) publish();
     } catch { /* the stream retries by itself */ }
   }
+  function parseRecord(message) {
+    if (typeof message !== 'string') return null;
+    let text = message.trim().replace(/^\uFEFF/, '');
+    const fenced = /^```(?:json)?\s*([\s\S]*?)```$/i.exec(text);
+    if (fenced) text = fenced[1].trim();
+    if (text.startsWith('{')) {
+      try {
+        const rec = JSON.parse(text);
+        if (rec && typeof rec === 'object' && !Array.isArray(rec)) return rec;
+      } catch { return null; }
+    }
+    // post_status.py sometimes posts "Name|working|what it is doing"
+    const parts = text.split('|').map((s) => s.trim());
+    if (parts.length >= 2 && parts.length <= 4 && parts[0] && parts[0].length <= 80 && parts[1].length <= 40) {
+      return { bot: parts[0], status: parts[1], step: parts[2] || '' };
+    }
+    return null;
+  }
   function ingest({ message, time }, replay) {
     if (typeof message !== 'string' || message.length > MAX_LINE) return false;
-    let rec;
-    try { rec = JSON.parse(message); } catch { return false; }
-    if (!rec || typeof rec !== 'object' || Array.isArray(rec)) return false;
+    const rec = parseRecord(message);
+    if (!rec) return false;
     const t = typeof rec.t === 'string' ? rec.t : new Date(time * 1000).toISOString();
     if (Array.isArray(rec.roster)) {
       for (const name of rec.roster.slice(0, 400)) {
