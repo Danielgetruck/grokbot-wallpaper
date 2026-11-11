@@ -9,7 +9,7 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { GTAOPass } from 'three/addons/postprocessing/GTAOPass.js';
 import { BokehPass } from 'three/addons/postprocessing/BokehPass.js';
-import { StudioPass } from './studio.js?v=15';
+import { StudioPass } from './studio.js?v=16';
 import { FXAAShader } from 'three/addons/shaders/FXAAShader.js';
 
 const TiltShiftShader = {
