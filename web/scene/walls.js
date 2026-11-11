@@ -1,6 +1,7 @@
 // Live wall screen ("Today · <floor>") and task board, drawn on canvases that texture the meshes
 // `wall_screen` and `task_board` of the open floor (CONTRACT v2.5). Redrawn only when the data changes (≤ 1/s).
 import * as THREE from 'three';
+import { sharpTexture } from './tex.js?v=18';
 
 const FONT = 'Inter, system-ui, -apple-system, "Segoe UI", sans-serif';
 const STATUS = { working: '#34C759', waiting_user: '#FF9F0A', error: '#FF3B30', stuck: '#FF9500', done: '#0A84FF', idle: '#A1A1A6' };
@@ -43,9 +44,7 @@ function makeCanvas(w, h) {
   c.width = w; c.height = h;
   const tex = new THREE.CanvasTexture(c);
   tex.colorSpace = THREE.SRGBColorSpace;
-  tex.anisotropy = 8;
-  tex.minFilter = THREE.LinearMipmapLinearFilter;
-  tex.generateMipmaps = true;
+  sharpTexture(tex);
   return { c, g: c.getContext('2d'), tex };
 }
 

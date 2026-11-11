@@ -18,7 +18,7 @@ export function ensureFx(parent) {
   parentOf = parent;
   if (mesh) return;
   const geo = new THREE.SphereGeometry(0.05, 6, 5);
-  const mat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false });
+  const mat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false });
   mesh = new THREE.InstancedMesh(geo, mat, MAX);
   mesh.name = 'fx-packets';
   mesh.frustumCulled = false;
@@ -46,7 +46,7 @@ export function ensureFx(parent) {
   linePos = new Float32Array(24 * 2 * 3);
   const lg = new THREE.BufferGeometry();
   lg.setAttribute('position', new THREE.BufferAttribute(linePos, 3));
-  lines = new THREE.LineSegments(lg, new THREE.LineBasicMaterial({ color: 0x67e8f9, transparent: true, opacity: 0.55 }));
+  lines = new THREE.LineSegments(lg, new THREE.LineBasicMaterial({ color: 0xc084fc, transparent: true, opacity: 0.7, toneMapped: false }));
   lines.name = 'fx-links';
   lines.frustumCulled = false;
   parent.add(lines);
@@ -114,7 +114,7 @@ export function setStaticLinks(parent, pairs) {
   }
   attr.needsUpdate = true;
   lines.geometry.setDrawRange(0, n / 3);
-  lines.material.color.set(0x67e8f9);
+  lines.material.color.set(0xc084fc);
   lines.material.opacity = 0.9;
 }
 
@@ -155,41 +155,51 @@ export function setNetwork(parent, pairs) {
   netGroup = new THREE.Group();
   netGroup.name = 'fx-network';
   flows = [];
-  const glow = new THREE.MeshBasicMaterial({ color: 0xc084fc, transparent: true, opacity: 0.28, blending: THREE.AdditiveBlending, depthWrite: false });
-  const core = new THREE.MeshBasicMaterial({ color: 0xe9d5ff, transparent: true, opacity: 0.55, blending: THREE.AdditiveBlending, depthWrite: false });
+  const glow = new THREE.MeshBasicMaterial({ color: 0xa855f7, transparent: true, opacity: 0.45, blending: THREE.AdditiveBlending, depthWrite: false, depthTest: false, toneMapped: false, fog: false });
+  const core = new THREE.MeshBasicMaterial({ color: 0xd8b4fe, transparent: true, opacity: 0.4, blending: THREE.AdditiveBlending, depthWrite: false, depthTest: false, toneMapped: false, fog: false });
   for (const p of pairs.slice(0, 96)) {
     const a = p.a.clone(); a.y = p.ay ?? 0.48;
     const b = p.b.clone(); b.y = p.by ?? 0.48;
     const curve = arcCurve(a, b, p.lift || 0.4, p.via);
-    const thick = p.wide ? 0.075 : 0.032;
+    const thick = p.wide ? 0.07 : 0.03;
     const dash = dashMaterial();
-    netGroup.add(new THREE.Mesh(new THREE.TubeGeometry(curve, 18, thick, 5, false), glow));
-    netGroup.add(new THREE.Mesh(new THREE.TubeGeometry(curve, 18, thick * 0.38, 5, false), core));
-    netGroup.add(new THREE.Mesh(new THREE.TubeGeometry(curve, 24, thick * 0.5, 5, false), dash));
-    flows.push({ curve, k: Math.random(), id: p.id || '', speed: 0.22, color: 0x7c3aed, scale: 2.4, dash, on: false });
+    dash.uniforms.uTime.value = Math.random() * 20;
+    netGroup.add(new THREE.Mesh(new THREE.TubeGeometry(curve, 20, thick, 5, false), glow));
+    netGroup.add(new THREE.Mesh(new THREE.TubeGeometry(curve, 20, thick * 0.42, 5, false), core));
+    netGroup.add(new THREE.Mesh(new THREE.TubeGeometry(curve, 28, thick * 0.22, 5, false), dash));
+    flows.push({ id: p.id || '', dash, speed: 0.35, density: 8, duty: 0.2, gain: 0.45 });
   }
+  netGroup.traverse((o) => o.layers.set(1));
   parent.add(netGroup);
 }
 
-/** Per-link pace. A live bot gets green dashes inside the purple tube, moving toward Master. */
+/** Working links run faster, brighter, denser green streaks. Idle links stay slow and faint. */
 export function setFlowPace(pace) {
   for (const f of flows) {
     const on = !!(pace && pace.get(f.id));
-    f.on = on;
-    f.speed = on ? 0.9 : 0;
-    f.color = on ? 0x22c55e : 0x6d28d9;
-    f.scale = on ? 0 : 0;
-    if (f.dash) f.dash.uniforms.uOn.value = on ? 1 : 0;
+    const u = f.dash?.uniforms;
+    if (!u) continue;
+    u.uSpeed.value = on ? 1.35 : 0.28;
+    u.uDensity.value = on ? 18 : 7;
+    u.uDuty.value = on ? 0.46 : 0.16;
+    u.uGain.value = on ? 1.05 : 0.38;
   }
 }
 
-let netTime = 0;
-
 function dashMaterial() {
   return new THREE.ShaderMaterial({
-    uniforms: { uTime: { value: 0 }, uOn: { value: 0 } },
+    uniforms: {
+      uTime: { value: 0 },
+      uSpeed: { value: 0.28 },
+      uDensity: { value: 7 },
+      uDuty: { value: 0.16 },
+      uGain: { value: 0.42 },
+    },
     transparent: true,
     depthWrite: false,
+    toneMapped: false,
+    fog: false,
+    depthTest: false,
     blending: THREE.AdditiveBlending,
     side: THREE.DoubleSide,
     vertexShader: `
@@ -200,42 +210,23 @@ function dashMaterial() {
       }
     `,
     fragmentShader: `
-      uniform float uTime;
-      uniform float uOn;
+      uniform float uTime, uSpeed, uDensity, uDuty, uGain;
       varying vec2 vUv;
       void main() {
-        if (uOn < 0.5) discard;
-        float dash = fract(vUv.x * 16.0 - uTime * 0.55);
-        float on = step(dash, 0.34);
-        gl_FragColor = vec4(0.25, 1.0, 0.48, on * 0.95);
+        float dash = fract(vUv.x * uDensity - uTime * uSpeed);
+        float on = smoothstep(0.0, 0.06, dash) * (1.0 - smoothstep(uDuty, uDuty + 0.1, dash));
+        vec3 col = vec3(0.224, 1.0, 0.533) * uGain * on;
+        gl_FragColor = vec4(col, on);
       }
     `,
   });
 }
 
 export function tickNetwork(dt) {
-  if (!mesh || !flows.length) return;
-  netTime += dt;
-  flows.forEach((f, i) => {
-    if (f.dash) f.dash.uniforms.uTime.value = netTime;
-    if (i >= MAX) return;
-    f.k = (f.k + dt * (f.speed || 0.2)) % 1;
-    const p = f.curve.getPoint(f.k);
-    dummy.position.copy(p);
-    dummy.scale.setScalar(f.scale || 2.4);
-    dummy.updateMatrix();
-    mesh.setMatrixAt(i, dummy.matrix);
-    mesh.setColorAt(i, new THREE.Color(f.color));
-    slots[i].alive = true;
-  });
-  for (let i = flows.length; i < MAX; i++) {
-    if (!slots[i].alive) continue;
-    dummy.scale.set(0, 0, 0);
-    dummy.updateMatrix();
-    mesh.setMatrixAt(i, dummy.matrix);
+  if (!flows.length) return;
+  for (const f of flows) {
+    if (f.dash) f.dash.uniforms.uTime.value += dt;
   }
-  mesh.instanceMatrix.needsUpdate = true;
-  if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
 }
 
 export function tickPackets(dt, reduced) {
@@ -259,8 +250,9 @@ export function tickPackets(dt, reduced) {
     }
     dummy.updateMatrix();
     mesh.setMatrixAt(i, dummy.matrix);
-    mesh.setColorAt(i, s.alive && !reduced ? s.color : new THREE.Color(0, 0, 0));
+    if (s.alive && !reduced) mesh.setColorAt(i, s.color);
   }
+  mesh.visible = slots.some((s) => s.alive) && !reduced;
   mesh.instanceMatrix.needsUpdate = true;
   if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
   if (cloud) cloud.rotation.y += reduced ? 0 : dt * 0.4;

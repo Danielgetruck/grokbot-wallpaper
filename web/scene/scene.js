@@ -5,22 +5,23 @@ import { CSS2DRenderer } from 'three/addons/renderers/CSS2DRenderer.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
-import { loadOfficeAssets } from './office.js?v=16';
-import { Building } from './building.js?v=16';
-import { createDaylight } from './daylight.js?v=16';
-import { createPost } from './post.js?v=16';
-import { studioCss } from './studio.js?v=16';
-import { Actor } from './actor.js?v=16';
-import { generateBlob } from './blobgen.js?v=16';
-import { Spring, clamp, REDUCED } from './spring.js?v=16';
-import { sofiaHour, fontsPromise } from './walls.js?v=16';
-import { applyDesks, tick as tickLife, ensureCat, petCat, sendMail, addressedTo, cullLabels } from './life.js?v=16';
-import { syncTeam, tickTeam, blockedDesk } from './modteam.js?v=16';
-import { spawnBeam, spawnTrail, tickPackets, setNetwork, tickNetwork, setFlowPace } from './packets.js?v=16';
-import { useHall, layoutHall, buildHall, faceSign, tickFloor } from './rooms.js?v=16';
-import { initQuality, getQuality, isSoftGpu, tickPolish, ensureDust, tickDust, syncRug, accentFor } from './polish.js?v=16';
-import { installCity } from './city.js?v=16';
-import { isWorking, RECENT_MS } from '../lib/live.js?v=16';
+import { loadOfficeAssets } from './office.js?v=18';
+import { Building } from './building.js?v=18';
+import { createDaylight } from './daylight.js?v=18';
+import { createPost } from './post.js?v=18';
+import { studioCss } from './studio.js?v=18';
+import { Actor } from './actor.js?v=18';
+import { generateBlob } from './blobgen.js?v=18';
+import { Spring, clamp, REDUCED } from './spring.js?v=18';
+import { sofiaHour, fontsPromise } from './walls.js?v=18';
+import { applyDesks, tick as tickLife, ensureCat, petCat, sendMail, addressedTo, cullLabels } from './life.js?v=18';
+import { syncTeam, tickTeam, blockedDesk } from './modteam.js?v=18';
+import { spawnTrail, tickPackets, setNetwork, tickNetwork, setFlowPace } from './packets.js?v=18';
+import { useHall, layoutHall, buildHall, faceSign, tickFloor } from './rooms.js?v=18';
+import { initQuality, getQuality, isSoftGpu, renderTier, noteFrame, onQualityChange, tickPolish, ensureDust, tickDust, syncRug, accentFor } from './polish.js?v=18';
+import { setMaxAnisotropy } from './tex.js?v=18';
+import { installCity } from './city.js?v=18';
+import { isWorking, RECENT_MS } from '../lib/live.js?v=18';
 
 // Relative to the page (not the site root), so the office also works when it is published in a sub-folder, e.g.
 // https://bodila51.github.io/grokbot-wallpaper/office/ -> ../assets. Locally the page is at `/`, where this is /assets.
@@ -96,6 +97,8 @@ export function initScene(el, cbs = {}) {
   }
 
   renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'high-performance' });
+  initQuality(renderer);
+  setMaxAnisotropy(renderer.capabilities.getMaxAnisotropy());
   renderer.setPixelRatio(pixelRatio());
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -122,7 +125,7 @@ export function initScene(el, cbs = {}) {
   }, undefined, () => { /* keep the procedural room if the file is missing */ });
 
   daylight = createDaylight({ scene, renderer });
-  initQuality(renderer);
+  onQualityChange(() => resize());
   document.documentElement.dataset.sky = 'studio';        // backdrop is the studio pass; the glass UI stays on its own tokens (web/styles.css)
   container.style.background = studioCss();               // the same backdrop as the post pass draws, for the first moments
 
@@ -385,8 +388,12 @@ function hideLoader() {
 // ---------- camera (all on springs) ----------
 
 function pixelRatio() {
-  const cap = getQuality() === 'low' ? 1.25 : 2;
-  return Math.min(window.devicePixelRatio || 1, cap);
+  const dpr = window.devicePixelRatio || 1;
+  if (renderTier() === 'fallback') return Math.min(dpr, 2);
+  let ratio = Math.min(dpr, 3);
+  const w = window.innerWidth || container?.clientWidth || 0;
+  if (w >= 1100 && !isPortraitPhone() && !isSoftGpu()) ratio = Math.min(3, ratio * 1.25);
+  return ratio;
 }
 
 function isPortraitPhone() {
@@ -756,6 +763,7 @@ function frame(t) {
   }
   const dt = frozen ? 0 : Math.min(clock.getDelta(), 0.05);
   if (frozen) clock.getDelta();
+  else if (assets) noteFrame(dt);
   nowSec = clock.elapsedTime;
   const nowMs = performance.now();
 
@@ -771,15 +779,6 @@ function frame(t) {
     tickLife(open, dt, nowSec);
     const talked = lastState ? tickTeam(open, Object.values(lastState.bots).filter((b) => b.floor === building.activeId), dt, nowSec) : null;
     if (talked) actors.get(talked.speaker.id)?.speak(talked.step, 1.6, nowSec);
-    if (!REDUCED && getQuality() === 'high' && lastState) {
-      for (const b of Object.values(lastState.bots)) {
-        if (b.floor !== building.activeId || (b.effective_status || b.status) !== 'working') continue;
-        if (Math.random() < dt * 0.45) {
-          const a = actors.get(b.id);
-          if (a) spawnBeam(open.root, a.root.position);
-        }
-      }
-    }
     tickPackets(dt, REDUCED || getQuality() === 'low');
     const pace = new Map();
     if (lastState) {
@@ -806,8 +805,9 @@ function frame(t) {
     ensureDust(open.root);
     tickDust(dt);
   }
-  const hi = getQuality() === 'high' && !REDUCED && !isSoftGpu();
-  if (post?.setBloom) post.setBloom(getQuality() !== 'low');
+  const hi = getQuality() === 'high' && renderTier() !== 'fallback' && !REDUCED && !isSoftGpu();
+  if (post?.setAa) post.setAa(renderTier() === 'fallback' ? 'fxaa' : 'smaa');
+  if (post?.setBloom) post.setBloom(getQuality() !== 'low' && renderTier() !== 'fallback');
   if (post?.setAo) post.setAo(hi);
   if (post?.setDof) {
     const sel = lastView.selectedBot && actors.get(lastView.selectedBot);

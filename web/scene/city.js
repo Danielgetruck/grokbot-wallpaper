@@ -1,5 +1,6 @@
 // Daytime campus around the office: sky, lawns, gardens, and a low city only on the far horizon.
 import * as THREE from 'three';
+import { sharpTexture } from './tex.js?v=18';
 
 const SKY_FS = /* glsl */`
   uniform float uTime;
@@ -51,19 +52,19 @@ function skyDome() {
 
 function grassTexture() {
   const c = document.createElement('canvas');
-  c.width = 256; c.height = 256;
+  c.width = 512; c.height = 512;
   const g = c.getContext('2d');
   g.fillStyle = '#3e8f45';
-  g.fillRect(0, 0, 256, 256);
-  for (let i = 0; i < 1400; i++) {
+  g.fillRect(0, 0, 512, 512);
+  for (let i = 0; i < 2800; i++) {
     g.fillStyle = i % 3 === 0 ? '#4ea354' : '#347a3c';
-    g.fillRect(Math.random() * 256, Math.random() * 256, 2, 2);
+    g.fillRect(Math.random() * 512, Math.random() * 512, 2, 2);
   }
   const map = new THREE.CanvasTexture(c);
   map.wrapS = map.wrapT = THREE.RepeatWrapping;
   map.repeat.set(18, 18);
   map.colorSpace = THREE.SRGBColorSpace;
-  return map;
+  return sharpTexture(map);
 }
 
 function place(mesh, i, x, y, z, sx, sy, sz, ry = 0) {
@@ -117,7 +118,7 @@ function gardens(rand) {
     beds,
   );
   const flowers = new THREE.InstancedMesh(
-    new THREE.SphereGeometry(0.2, 6, 5),
+    new THREE.SphereGeometry(0.2, 12, 8),
     new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.5 }),
     beds * 7,
   );
@@ -157,17 +158,17 @@ function trees(rand) {
   const g = new THREE.Group();
   g.name = 'trees';
   const trunks = new THREE.InstancedMesh(
-    new THREE.CylinderGeometry(0.12, 0.16, 1, 6),
+    new THREE.CylinderGeometry(0.12, 0.16, 1, 12),
     new THREE.MeshStandardMaterial({ color: 0x6b4630, roughness: 0.85 }),
     28,
   );
   const round = new THREE.InstancedMesh(
-    new THREE.SphereGeometry(0.55, 8, 6),
+    new THREE.SphereGeometry(0.55, 16, 12),
     new THREE.MeshStandardMaterial({ color: 0x2f8f3e, roughness: 0.72 }),
     18,
   );
   const pines = new THREE.InstancedMesh(
-    new THREE.ConeGeometry(0.7, 1.6, 7),
+    new THREE.ConeGeometry(0.7, 1.6, 14),
     new THREE.MeshStandardMaterial({ color: 0x1f6b34, roughness: 0.75 }),
     10,
   );

@@ -9,8 +9,8 @@
 // shape (+ a small tilt bucket + accessory), materials per colour, so a floor of 20 bots costs a handful of
 // meshes. Everything is deterministic: same input, same blob.
 import * as THREE from 'three';
-import { SHAPES, ACCESSORIES, normShape, normAccessory, normColor, hash32, hashShape } from './looks.js?v=16';
-import { makeOutline, toPolar, csmooth } from './outlines.js?v=16';
+import { SHAPES, ACCESSORIES, normShape, normAccessory, normColor, hash32, hashShape } from './looks.js?v=18';
+import { makeOutline, toPolar, csmooth } from './outlines.js?v=18';
 
 export { SHAPES, ACCESSORIES };
 

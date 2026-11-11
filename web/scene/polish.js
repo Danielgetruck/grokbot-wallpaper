@@ -1,6 +1,7 @@
 // Room dressing and the quality switch. Decor is static geometry. Dust drifts only while the tab is drawing.
 import * as THREE from 'three';
-import { REDUCED } from './spring.js?v=16';
+import { REDUCED } from './spring.js?v=18';
+import { sharpTexture } from './tex.js?v=18';
 
 const KEY = 'bothq.quality';
 let level = 'high';
@@ -24,36 +25,63 @@ export function initQuality(renderer) {
   level = 'high';
   return level;
 }
+let tier = 'high';
+let slowAcc = 0;
+let watchStart = 0;
+let onChange = () => {};
+
 export function getQuality() { return level; }
 export function isSoftGpu() { return softGpu; }
+export function renderTier() { return level === 'low' ? 'fallback' : tier; }
+export function onQualityChange(fn) { onChange = fn; }
+
+/** Drop to the lighter renderer when frames stay slower than 25ms for 3 seconds. */
+export function noteFrame(dtSec) {
+  if (level === 'low' || tier === 'fallback') return false;
+  const now = performance.now();
+  if (!watchStart) watchStart = now;
+  if (now - watchStart < 2000) return false;
+  const ms = dtSec * 1000;
+  if (ms > 25) slowAcc += ms;
+  else slowAcc = Math.max(0, slowAcc - ms);
+  if (slowAcc < 3000) return false;
+  tier = 'fallback';
+  slowAcc = 0;
+  onChange();
+  return true;
+}
+
 export function toggleQuality() {
   level = level === 'high' ? 'low' : 'high';
+  if (level === 'high') { tier = 'high'; watchStart = performance.now(); slowAcc = 0; }
   try { localStorage.setItem(KEY, level); } catch { /* private mode */ }
+  onChange();
   return level;
 }
 
 function signTexture() {
   const c = document.createElement('canvas');
-  c.width = 512; c.height = 128;
+  c.width = 1536; c.height = 384;
   const g = c.getContext('2d');
-  g.clearRect(0, 0, 512, 128);
+  g.clearRect(0, 0, 1536, 384);
   g.strokeStyle = '#E7D2FF';
-  g.lineWidth = 8;
-  g.strokeRect(8, 8, 496, 112);
+  g.lineWidth = 24;
+  g.strokeRect(24, 24, 1488, 336);
   g.fillStyle = '#F4E9FF';
-  g.font = '700 64px sans-serif';
+  g.font = '700 192px sans-serif';
   g.textAlign = 'center';
   g.textBaseline = 'middle';
-  g.fillText('Daniel HQ', 256, 68);
+  g.fillText('Daniel HQ', 768, 204);
   const t = new THREE.CanvasTexture(c);
   t.colorSpace = THREE.SRGBColorSpace;
-  return t;
+  return sharpTexture(t);
 }
 
 function posterTexture(hue) {
   const c = document.createElement('canvas');
-  c.width = 128; c.height = 180;
+  c.width = 384; c.height = 540;
   const g = c.getContext('2d');
+  g.scale(3, 3);
   g.fillStyle = `hsl(${hue} 40% 18%)`;
   g.fillRect(0, 0, 128, 180);
   g.fillStyle = `hsl(${hue} 70% 62%)`;
@@ -63,7 +91,7 @@ function posterTexture(hue) {
   g.fillRect(16, 128, 48, 8);
   const t = new THREE.CanvasTexture(c);
   t.colorSpace = THREE.SRGBColorSpace;
-  return t;
+  return sharpTexture(t);
 }
 
 function skylineTexture() {

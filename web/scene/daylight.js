@@ -14,8 +14,8 @@
 // declination +10°, solar noon 12:40: 07:15 morning, 13:00 day, 18:50 sunset, 23:00 night), the same on every date;
 // ?time=18:50&real=1 = today's real sun at that time; ?time=auto or setTime(null) = the live clock.
 import * as THREE from 'three';
-import { smoothstep, lerp, clamp } from './spring.js?v=16';
-import { createSunPatch } from './sunpatch.js?v=16';
+import { smoothstep, lerp, clamp } from './spring.js?v=18';
+import { createSunPatch } from './sunpatch.js?v=18';
 
 const rgb = (hex) => { const c = new THREE.Color(hex); c.convertLinearToSRGB(); return [c.r, c.g, c.b]; };
 
@@ -165,9 +165,10 @@ export function createDaylight({ scene, renderer }) {
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   const sun = new THREE.DirectionalLight(0xffffff, 1);
   sun.castShadow = true;
-  sun.shadow.mapSize.setScalar(COARSE ? 1024 : 2048);
-  sun.shadow.bias = -0.0005;
-  sun.shadow.normalBias = 0.02;
+  const desktop = !COARSE && (typeof window !== 'undefined' && (window.innerWidth || 0) >= 1100);
+  sun.shadow.mapSize.setScalar(desktop ? 4096 : 2048);
+  sun.shadow.bias = -0.00025;
+  sun.shadow.normalBias = 0.035;
   sun.shadow.radius = 2;
   const hemi = new THREE.HemisphereLight(0xffffff, 0xffffff, 1);
   const fill = new THREE.DirectionalLight(0xffffff, 0.4);
