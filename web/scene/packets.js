@@ -46,15 +46,15 @@ export function ensureFx(parent) {
   linePos = new Float32Array(24 * 2 * 3);
   const lg = new THREE.BufferGeometry();
   lg.setAttribute('position', new THREE.BufferAttribute(linePos, 3));
-  lines = new THREE.LineSegments(lg, new THREE.LineBasicMaterial({ color: 0xc4a0ff, transparent: true, opacity: 0.45 }));
+  lines = new THREE.LineSegments(lg, new THREE.LineBasicMaterial({ color: 0x67e8f9, transparent: true, opacity: 0.55 }));
   lines.name = 'fx-links';
   lines.frustumCulled = false;
   parent.add(lines);
 
-  cloud = new THREE.Mesh(new THREE.OctahedronGeometry(0.28, 0), new THREE.MeshBasicMaterial({ color: 0xd8c6ff, transparent: true, opacity: 0.85 }));
+  cloud = new THREE.Mesh(new THREE.OctahedronGeometry(0.28, 0), new THREE.MeshBasicMaterial({ color: 0x7dd3fc, transparent: true, opacity: 0.85 }));
   cloud.name = 'fx-cloud';
-  cloud.position.set(-1.2, 2.45, -0.4);
-  const halo = new THREE.Mesh(new THREE.SphereGeometry(0.45, 12, 8), new THREE.MeshBasicMaterial({ color: 0x9b7dff, transparent: true, opacity: 0.18, blending: THREE.AdditiveBlending, depthWrite: false }));
+  cloud.position.set(-1.2, 3.8, -0.4);
+  const halo = new THREE.Mesh(new THREE.SphereGeometry(0.45, 12, 8), new THREE.MeshBasicMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.18, blending: THREE.AdditiveBlending, depthWrite: false }));
   cloud.add(halo);
   parent.add(cloud);
 }
@@ -74,7 +74,7 @@ function launch(parent, a, b, color, lift, dur, ripple) {
   return true;
 }
 
-export function spawnArc(parent, a, b, color = 0xc4b5fd) {
+export function spawnArc(parent, a, b, color = 0x7dd3fc) {
   const from = a.clone(); from.y = Math.max(from.y, 0.9);
   const to = b.clone(); to.y = Math.max(to.y, 0.9);
   launch(parent, from, to, color, 0.85, 1.15, false);
@@ -114,7 +114,7 @@ export function setStaticLinks(parent, pairs) {
   }
   attr.needsUpdate = true;
   lines.geometry.setDrawRange(0, n / 3);
-  lines.material.color.set(0xd8b4fe);
+  lines.material.color.set(0x67e8f9);
   lines.material.opacity = 0.9;
 }
 
@@ -131,7 +131,7 @@ function arcCurve(a, b, lift, via) {
     const seg = Math.min(stops.length - 2, Math.floor(t * (stops.length - 1)));
     const u = t * (stops.length - 1) - seg;
     const p = new THREE.Vector3().lerpVectors(stops[seg], stops[seg + 1], u);
-    p.y = 0.55 + Math.sin(u * Math.PI) * lift;
+    p.y += Math.sin(u * Math.PI) * lift;
     pts.push(p);
   }
   return new THREE.CatmullRomCurve3(pts);
@@ -140,26 +140,28 @@ function arcCurve(a, b, lift, via) {
 /** Always-on neon links. Rebuilt only when the set of endpoints changes. */
 export function setNetwork(parent, pairs) {
   ensureFx(parent);
-  const key = pairs.map((p) => `${p.a.x.toFixed(1)},${p.a.z.toFixed(1)}>${p.b.x.toFixed(1)},${p.b.z.toFixed(1)}:${p.lift || 0}:${(p.via || []).map((v) => `${v.x.toFixed(1)},${v.z.toFixed(1)}`).join(';')}`).join('|');
+  const key = pairs.map((p) => `${p.a.x.toFixed(1)},${p.a.z.toFixed(1)}>${p.b.x.toFixed(1)},${p.b.z.toFixed(1)}:${p.lift || 0}:${p.ay || 0}:${p.by || 0}:${(p.via || []).map((v) => `${v.x.toFixed(1)},${v.z.toFixed(1)}`).join(';')}`).join('|');
   if (key === netKey && netGroup?.parent === parent) return;
   netKey = key;
   if (netGroup) {
-    netGroup.removeFromParent();
+    const mats = new Set();
     netGroup.traverse((o) => {
       if (o.geometry) o.geometry.dispose();
-      if (o.material?.uniforms) o.material.dispose();
+      if (o.material) mats.add(o.material);
     });
+    for (const m of mats) m.dispose();
+    netGroup.removeFromParent();
   }
   netGroup = new THREE.Group();
   netGroup.name = 'fx-network';
   flows = [];
   const glow = new THREE.MeshBasicMaterial({ color: 0xc084fc, transparent: true, opacity: 0.28, blending: THREE.AdditiveBlending, depthWrite: false });
   const core = new THREE.MeshBasicMaterial({ color: 0xe9d5ff, transparent: true, opacity: 0.55, blending: THREE.AdditiveBlending, depthWrite: false });
-  for (const p of pairs.slice(0, 64)) {
-    const a = p.a.clone(); a.y = 0.4;
-    const b = p.b.clone(); b.y = 0.4;
-    const curve = arcCurve(a, b, p.lift || 1.35, p.via);
-    const thick = p.wide ? 0.07 : 0.035;
+  for (const p of pairs.slice(0, 96)) {
+    const a = p.a.clone(); a.y = p.ay ?? 0.48;
+    const b = p.b.clone(); b.y = p.by ?? 0.48;
+    const curve = arcCurve(a, b, p.lift || 0.4, p.via);
+    const thick = p.wide ? 0.075 : 0.032;
     const dash = dashMaterial();
     netGroup.add(new THREE.Mesh(new THREE.TubeGeometry(curve, 18, thick, 5, false), glow));
     netGroup.add(new THREE.Mesh(new THREE.TubeGeometry(curve, 18, thick * 0.38, 5, false), core));

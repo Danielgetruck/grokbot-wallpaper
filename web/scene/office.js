@@ -119,10 +119,10 @@ function wideGrid() {
 }
 
 // The cutaway shell (solid wall, slab edge) is a plain PBR colour, not a lightmap. Shift it into the same
-// plum / lilac family as the baked floor and wall. Lightmaps themselves are tinted in daylight.js.
+// cool blue family as the navy backdrop. Lightmaps themselves are tinted in daylight.js.
 function recolorShell(templates) {
-  const wall = new THREE.Color(0xC9B6E4);
-  const slab = new THREE.Color(0x3A2158);
+  const wall = new THREE.Color(0xC5D4E6);
+  const slab = new THREE.Color(0x1A2C48);
   for (const root of Object.values(templates)) {
     root.traverse((o) => {
       if (!o.isMesh) return;

@@ -17,7 +17,7 @@ const mat = {
   lamp: new THREE.MeshStandardMaterial({ color: 0xffe6b0, roughness: 0.55, metalness: 0.02, emissive: 0x000000, emissiveIntensity: 0 }),
   panel: new THREE.MeshStandardMaterial({ color: 0xd8dde6, roughness: 0.55, metalness: 0.04, transparent: true, opacity: 0.72 }),
   frost: new THREE.MeshPhysicalMaterial({ color: 0xb7c3d4, roughness: 0.28, metalness: 0.02, transparent: true, opacity: 0.72, depthWrite: false }),
-  glow: new THREE.MeshBasicMaterial({ color: 0xc4b5fd, transparent: true, opacity: 0.35, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }),
+  glow: new THREE.MeshBasicMaterial({ color: 0x67e8f9, transparent: true, opacity: 0.4, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, toneMapped: false }),
 };
 
 function roundedSlab(w, d, thick, radius) {

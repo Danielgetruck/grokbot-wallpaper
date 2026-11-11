@@ -1,6 +1,6 @@
 /* Scene-owned styles: canvas, loading text and the quiet in-scene tags (CONTRACT v2.3 / v2.5). */
 
-.hq-scene { position: relative; overflow: hidden; background-color: #F6F6F8; cursor: grab; touch-action: none; user-select: none; -webkit-user-select: none; }
+.hq-scene { position: relative; overflow: hidden; background-color: #071422; cursor: grab; touch-action: none; user-select: none; -webkit-user-select: none; }
 .hq-scene:active { cursor: grabbing; }
 .hq-scene.is-hovering { cursor: pointer; }
 /* The backdrop (white studio + the building's shadow aura) is drawn by the post pass (studio.js); the container only
@@ -70,14 +70,14 @@
 .hq-nameplate {
   pointer-events: none; max-width: 132px;
   padding: 3px 7px; border-radius: 8px;
-  background: rgba(16, 8, 28, .88); color: #F6F0FF;
-  border: 1px solid rgba(196, 170, 255, .45);
+  background: rgba(8, 18, 36, .88); color: #E8F3FF;
+  border: 1px solid rgba(125, 190, 255, .5);
   font: 700 12px/1.2 Inter, system-ui, sans-serif;
   text-align: center; white-space: nowrap;
 }
 .hq-nameplate[hidden] { display: none; }
 .hq-nameplate b, .hq-nameplate span { display: block; overflow: hidden; text-overflow: ellipsis; }
-.hq-nameplate span { font-weight: 500; font-size: 10px; color: #CDBFE8; }
+.hq-nameplate span { font-weight: 500; font-size: 10px; color: #C5D8EE; }
 .hq-nameplate span:empty { display: none; }
 
 .hqt-say {

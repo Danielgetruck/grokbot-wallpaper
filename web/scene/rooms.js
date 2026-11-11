@@ -1,6 +1,7 @@
 // One walled room per team, packed into a single hall. Group names are canvas text, drawn so Hebrew stays RTL.
 import * as THREE from 'three';
-import { isFamilyName, isLeadName, isMasterName } from './modteam.js?v=16';
+import { CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
+import { isLeadName, isMasterName, isNumberedModName } from './modteam.js?v=16';
 import { buildFurniture } from './furniture.js?v=16';
 
 const ACCENT = [0xc084fc, 0x22d3ee, 0xf0abfc, 0xa78bfa, 0x67e8f9, 0xe9d5ff, 0xfbbf24, 0x818cf8];
@@ -74,55 +75,118 @@ function putGrid(spots, people, x0, z0, cols, xStep, zStep) {
   });
 }
 
-/** One floor. Names decide the seats; feed groups are ignored. */
+const PX = 2.55;
+const PZ = 2.45;
+const SERVER = new THREE.Vector3(0, 0, 0);
+
+function byName(a, b) {
+  return String(a.name || '').localeCompare(String(b.name || ''), undefined, { numeric: true, sensitivity: 'base' });
+}
+
+/**
+ * One floor. Names decide the seats; feed groups are ignored.
+ * Daniel is the server at the middle (not a bot). Master sits beside it and talks to every bot
+ * outside the MOD department. The head MoD sits in that department and talks to MoD2, Mod5, …
+ * A missing Master or MoD simply drops the lines that would have started there.
+ */
 export function layoutHall(_floors, bots) {
   const all = (bots || []).filter((b) => b && b.id);
   const master = all.find((b) => isMasterName(b.name)) || null;
-  const modLead = all.find((b) => isLeadName(b.name)) || null;
-  const modFamily = all.filter((b) => b !== master && b !== modLead && isFamilyName(b.name));
-  const rest = all.filter((b) => b !== master && b !== modLead && !isFamilyName(b.name));
+  const modLead = all.find((b) => b !== master && isLeadName(b.name)) || null;
+  const modFamily = all.filter((b) => b !== master && b !== modLead && isNumberedModName(b.name)).sort(byName);
+  const modIds = new Set(modFamily.map((b) => b.id));
+  const rest = all.filter((b) => b !== master && b !== modLead && !modIds.has(b.id)).sort(byName);
   const spots = new Map();
-  const hub = new THREE.Vector3(0, 0, 0);
-  if (master) spots.set(master.id, { pos: hub.clone(), yaw: 0.35, lead: true, hub: true });
 
-  const modCols = Math.min(4, Math.max(2, Math.ceil(Math.sqrt(Math.max(modFamily.length, 1)))));
-  const modRows = Math.max(1, Math.ceil(modFamily.length / modCols));
-  putGrid(spots, modFamily, -6.2 - (modCols - 1) * 2.45, -((modRows - 1) * 2.35) / 2, modCols, 2.45, 2.35);
+  if (master) {
+    const x = 2.75, z = -1.05;
+    spots.set(master.id, { pos: new THREE.Vector3(x, 0, z), yaw: Math.atan2(-x, -z), lead: true, role: 'master' });
+  }
+
+  const modCols = Math.min(3, Math.max(1, Math.ceil(Math.sqrt(Math.max(modFamily.length, 1)))));
+  const modRows = Math.max(1, Math.ceil((modFamily.length || 1) / modCols));
+  const headX = -4.4;
+  if (modFamily.length) {
+    const right = headX - (modLead ? 2.2 : 0);
+    const x0 = right - (modCols - 1) * PX;
+    const z0 = -((modRows - 1) * PZ) / 2;
+    putGrid(spots, modFamily, x0, z0, modCols, PX, PZ);
+    const aim = modLead ? new THREE.Vector3(headX, 0, 0) : SERVER;
+    for (const b of modFamily) {
+      const s = spots.get(b.id);
+      s.yaw = Math.atan2(aim.x - s.pos.x, aim.z - s.pos.z);
+      s.mod = true;
+    }
+  }
   if (modLead) {
-    const lx = -4.2;
-    spots.set(modLead.id, { pos: new THREE.Vector3(lx, 0, 0), yaw: faceOrigin(lx, 0), lead: true });
+    spots.set(modLead.id, {
+      pos: new THREE.Vector3(headX, 0, 0),
+      yaw: Math.atan2(-headX, 0),
+      lead: true,
+      role: 'mod',
+    });
   }
 
   const sides = [[], [], []];
   rest.forEach((b, i) => sides[i % 3].push(b));
   const sideCols = 4;
+  const rightX = master ? 6.15 : 3.5;
   sides.forEach((people, s) => {
     if (!people.length) return;
     const rows = Math.ceil(people.length / sideCols);
-    if (s === 0) putGrid(spots, people, 4.4, -((rows - 1) * 2.35) / 2, sideCols, 2.45, 2.35);
-    else if (s === 1) putGrid(spots, people, -((Math.min(sideCols, people.length) - 1) * 2.45) / 2, -5.6 - (rows - 1) * 2.35, sideCols, 2.45, -2.35);
-    else putGrid(spots, people, -((Math.min(sideCols, people.length) - 1) * 2.45) / 2, 5.6, sideCols, 2.45, 2.35);
+    if (s === 0) putGrid(spots, people, rightX, -((rows - 1) * PZ) / 2, sideCols, PX, PZ);
+    else if (s === 1) putGrid(spots, people, 1.15, -6.5 - (rows - 1) * PZ, sideCols, PX, -PZ);
+    else putGrid(spots, people, 1.15, 6.5, sideCols, PX, PZ);
   });
 
   const links = [];
-  for (const [id, s] of spots) {
-    if (id === master?.id) continue;
-    links.push({ a: s.pos, b: hub, id, lift: 0.22 });
+  const masterSpot = master ? spots.get(master.id) : null;
+  const leadSpot = modLead ? spots.get(modLead.id) : null;
+  if (masterSpot) {
+    links.push({ a: SERVER.clone(), b: masterSpot.pos.clone(), id: master.id, lift: 0.42, wide: true, ay: 1.35, by: 0.72 });
+    for (const b of rest) {
+      const s = spots.get(b.id);
+      if (s) links.push({ a: masterSpot.pos.clone(), b: s.pos.clone(), id: b.id, lift: 0.36 });
+    }
   }
-  let minX = -8, maxX = 8, minZ = -8, maxZ = 8;
-  for (const s of spots.values()) {
-    minX = Math.min(minX, s.pos.x - 1.6);
-    maxX = Math.max(maxX, s.pos.x + 1.6);
-    minZ = Math.min(minZ, s.pos.z - 1.6);
-    maxZ = Math.max(maxZ, s.pos.z + 1.6);
+  if (leadSpot) {
+    links.push({ a: SERVER.clone(), b: leadSpot.pos.clone(), id: modLead.id, lift: 0.38, wide: true, ay: 1.25, by: 0.72 });
+    for (const b of modFamily) {
+      const s = spots.get(b.id);
+      if (s) links.push({ a: leadSpot.pos.clone(), b: s.pos.clone(), id: b.id, lift: 0.26 });
+    }
   }
-  const modMark = { x: -5.6, z: 0, w: Math.max(6, modCols * 2.45 + 2), d: Math.max(4, modRows * 2.35 + 3) };
+
+  let minX = -3.2, maxX = 3.2, minZ = -3.2, maxZ = 3.2;
+  const cover = (x, z, p) => {
+    minX = Math.min(minX, x - p); maxX = Math.max(maxX, x + p);
+    minZ = Math.min(minZ, z - p); maxZ = Math.max(maxZ, z + p);
+  };
+  cover(0, 0, 2.2);
+  for (const s of spots.values()) cover(s.pos.x, s.pos.z, 1.7);
+
+  let modMark = null;
+  if (modLead || modFamily.length) {
+    let x0 = Infinity, x1 = -Infinity, z0 = Infinity, z1 = -Infinity;
+    const take = (x, z) => { x0 = Math.min(x0, x); x1 = Math.max(x1, x); z0 = Math.min(z0, z); z1 = Math.max(z1, z); };
+    if (modLead) take(headX, 0);
+    for (const b of modFamily) { const s = spots.get(b.id); if (s) take(s.pos.x, s.pos.z); }
+    const padX = 1.65, padZ = 1.5;
+    modMark = { x: (x0 + x1) / 2, z: (z0 + z1) / 2, w: Math.max(4.4, x1 - x0 + padX * 2), d: Math.max(3.8, z1 - z0 + padZ * 2) };
+    cover(modMark.x - modMark.w / 2, modMark.z, 0.3);
+    cover(modMark.x + modMark.w / 2, modMark.z, 0.3);
+    cover(modMark.x, modMark.z - modMark.d / 2, 0.3);
+    cover(modMark.x, modMark.z + modMark.d / 2, 0.3);
+  }
+
   return {
     rooms: [{ id: 'office', name: 'הצוות', x: 0, z: 0, w: maxX - minX, d: maxZ - minZ }],
     spots, links, lounge: null,
     bounds: { minX, maxX, minZ, maxZ },
-    modMark, hub,
-    furn: master ? [...spots.values()] : [...spots.values(), { pos: hub.clone(), yaw: 0.35, lead: true }],
+    modMark,
+    hub: SERVER.clone(),
+    server: SERVER.clone(),
+    furn: [...spots.values()],
   };
 }
 
@@ -135,12 +199,12 @@ function signTexture(name, color) {
   const g = c.getContext('2d');
   g.clearRect(0, 0, 2048, 512);
   const hex = '#' + color.toString(16).padStart(6, '0');
-  g.fillStyle = '#120818';
+  g.fillStyle = '#07111f';
   g.fillRect(0, 0, 2048, 512);
   g.strokeStyle = hex;
   g.lineWidth = 18;
   g.strokeRect(16, 16, 2016, 480);
-  g.fillStyle = '#F8F1FF';
+  g.fillStyle = '#E7F4FF';
   g.textBaseline = 'middle';
   g.textAlign = 'center';
   g.direction = hebrew ? 'rtl' : 'ltr';
@@ -180,7 +244,7 @@ function carpetTiles() {
   const tile = 64;
   for (let y = 0; y < 512; y += tile) for (let x = 0; x < 512; x += tile) {
     const alt = ((x / tile) + (y / tile)) % 2 === 0;
-    g.fillStyle = alt ? '#d9d4cc' : '#c9c3ba';
+    g.fillStyle = alt ? '#d7e0ea' : '#c5d0dc';
     g.fillRect(x, y, tile, tile);
     g.strokeStyle = 'rgba(80,70,60,0.35)';
     g.strokeRect(x + 0.5, y + 0.5, tile - 1, tile - 1);
@@ -200,7 +264,7 @@ function carpetMaterial(color) {
 }
 
 function addCeiling(g, room) {
-  const fixture = new THREE.MeshStandardMaterial({ color: 0xd9d3c8, emissive: 0xffe7c2, emissiveIntensity: 0.28, roughness: 0.5 });
+  const fixture = new THREE.MeshStandardMaterial({ color: 0xd5dee8, emissive: 0xd6e6ff, emissiveIntensity: 0.32, roughness: 0.5 });
   const w = Math.min(room.w * 0.28, 1.4);
   for (const z of [-room.d * 0.16, room.d * 0.16]) {
     const bar = new THREE.Mesh(new THREE.BoxGeometry(w, 0.035, 0.22), fixture);
@@ -242,9 +306,9 @@ function whiteFloorMaterial() {
   const c = document.createElement('canvas');
   c.width = 512; c.height = 512;
   const g = c.getContext('2d');
-  g.fillStyle = '#2a2a33';
+  g.fillStyle = '#243044';
   g.fillRect(0, 0, 512, 512);
-  g.strokeStyle = '#1c1c24';
+  g.strokeStyle = '#1a2433';
   g.lineWidth = 3;
   const tile = 64;
   for (let i = 0; i <= 512; i += tile) {
@@ -315,14 +379,14 @@ function addShell(root, cx, cz, fw, fd) {
   const hx = fw / 2, hz = fd / 2;
   const wallH = 2.55;
   const cutH = 0.42;
-  const frame = new THREE.MeshStandardMaterial({ color: 0xf4f1ea, roughness: 0.55, metalness: 0.04 });
+  const frame = new THREE.MeshStandardMaterial({ color: 0xe7eef6, roughness: 0.55, metalness: 0.04 });
   const metal = new THREE.MeshStandardMaterial({ color: 0xc5cad3, roughness: 0.28, metalness: 0.72 });
   const glass = new THREE.MeshPhysicalMaterial({
     name: 'glass_pane',
     color: 0xb7d4f0, roughness: 0.06, metalness: 0.04, transparent: true, opacity: 0.2,
     emissive: 0x000000, emissiveIntensity: 0, envMapIntensity: 0.7, side: THREE.DoubleSide, depthWrite: false,
   });
-  const neon = new THREE.MeshBasicMaterial({ color: 0xc084fc, transparent: true, opacity: 0.75, blending: THREE.AdditiveBlending, depthWrite: false });
+  const neon = new THREE.MeshBasicMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.8, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false });
   neonStrips = [];
 
   const base = (w, d, x, z) => {
@@ -412,10 +476,121 @@ export function tickFloor(t) {
   if (stars) stars.material.opacity = 0.55 + 0.35 * (0.5 + 0.5 * Math.sin(t * 2.2));
 }
 
+function danielLabel() {
+  const el = document.createElement('div');
+  el.className = 'hqt';
+  el.dataset.mode = 'hover';
+  el.style.setProperty('--c', '#38bdf8');
+  const pill = document.createElement('div');
+  pill.className = 'hqt-pill';
+  const dot = document.createElement('i');
+  dot.className = 'hqt-dot';
+  const text = document.createElement('span');
+  text.className = 'hqt-text';
+  text.textContent = 'Daniel';
+  pill.append(dot, text);
+  const stem = document.createElement('div');
+  stem.className = 'hqt-stem';
+  el.append(pill, stem);
+  const obj = new CSS2DObject(el);
+  obj.center.set(0.5, 1);
+  obj.position.set(0, 2.72, 0);
+  obj.name = 'daniel-label';
+  return obj;
+}
+
+function addServer(root, at) {
+  const g = new THREE.Group();
+  g.name = 'daniel-server';
+  g.position.set(at.x, 0, at.z);
+  const bodyMat = new THREE.MeshStandardMaterial({ color: 0x121820, metalness: 0.72, roughness: 0.34 });
+  const trimMat = new THREE.MeshStandardMaterial({ color: 0x243246, metalness: 0.62, roughness: 0.38 });
+  const glowMat = new THREE.MeshBasicMaterial({ color: 0x67e8f9, toneMapped: false });
+  const dimMat = new THREE.MeshBasicMaterial({ color: 0x0e7490, toneMapped: false });
+  const plinth = new THREE.Mesh(new THREE.BoxGeometry(1.38, 0.12, 0.92), trimMat);
+  plinth.position.y = 0.06;
+  plinth.castShadow = true;
+  const body = new THREE.Mesh(new THREE.BoxGeometry(1.05, 2.15, 0.62), bodyMat);
+  body.position.y = 1.2;
+  body.castShadow = true;
+  g.add(plinth, body);
+  for (let i = 0; i < 6; i++) {
+    const bay = new THREE.Mesh(new THREE.BoxGeometry(0.78, 0.07, 0.02), i % 2 ? glowMat : dimMat);
+    bay.position.set(0, 0.48 + i * 0.26, 0.32);
+    g.add(bay);
+  }
+  for (let i = 0; i < 5; i++) {
+    const vent = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.05, 0.38), dimMat);
+    vent.position.set(0.535, 0.55 + i * 0.3, 0);
+    g.add(vent);
+  }
+  const cap = new THREE.Mesh(new THREE.BoxGeometry(1.12, 0.08, 0.7), trimMat);
+  cap.position.y = 2.32;
+  const ant = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 0.26, 8), trimMat);
+  ant.position.y = 2.48;
+  const tip = new THREE.Mesh(new THREE.SphereGeometry(0.045, 10, 8), glowMat);
+  tip.position.y = 2.64;
+  const ring = new THREE.Mesh(
+    new THREE.RingGeometry(0.72, 0.9, 40),
+    new THREE.MeshBasicMaterial({ color: 0x22d3ee, transparent: true, opacity: 0.55, side: THREE.DoubleSide, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }),
+  );
+  ring.rotation.x = -Math.PI / 2;
+  ring.position.y = 0.03;
+  g.add(cap, ant, tip, ring, danielLabel());
+  root.add(g);
+}
+
+function addModRoom(root, zone) {
+  const { x, z, w, d } = zone;
+  const h = 1.28;
+  const glass = new THREE.MeshPhysicalMaterial({
+    color: 0x9fd0ff, roughness: 0.08, metalness: 0.05, transparent: true, opacity: 0.2,
+    side: THREE.DoubleSide, depthWrite: false, emissive: 0x123048, emissiveIntensity: 0.18,
+  });
+  const rail = new THREE.MeshBasicMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.85, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false });
+  const postMat = new THREE.MeshStandardMaterial({ color: 0x1b2838, metalness: 0.7, roughness: 0.32 });
+  const pad = new THREE.Mesh(
+    new THREE.PlaneGeometry(Math.max(0.4, w - 0.12), Math.max(0.4, d - 0.12)),
+    new THREE.MeshStandardMaterial({ color: 0xb7c8da, roughness: 0.86, metalness: 0.02 }),
+  );
+  pad.rotation.x = -Math.PI / 2;
+  pad.position.set(x, 0.022, z);
+  pad.receiveShadow = true;
+  root.add(pad);
+  const hx = w / 2, hz = d / 2;
+  const panel = (ww, dd, px, pz) => {
+    const wall = new THREE.Mesh(new THREE.BoxGeometry(ww, h, dd), glass);
+    wall.position.set(x + px, h / 2 + 0.04, z + pz);
+    const lip = new THREE.Mesh(new THREE.BoxGeometry(ww, 0.045, Math.max(dd, 0.06)), rail);
+    lip.position.set(x + px, h + 0.06, z + pz);
+    root.add(wall, lip);
+  };
+  panel(w, 0.05, 0, -hz);
+  panel(w, 0.05, 0, hz);
+  panel(0.05, d, -hx, 0);
+  const gap = Math.min(1.35, Math.max(0.8, d * 0.28));
+  const seg = Math.max(0.2, (d - gap) / 2);
+  panel(0.05, seg, hx, -(hz - seg / 2));
+  panel(0.05, seg, hx, hz - seg / 2);
+  for (const [px, pz] of [[-hx, -hz], [hx, -hz], [-hx, hz], [hx, hz]]) {
+    const post = new THREE.Mesh(new THREE.BoxGeometry(0.08, h + 0.08, 0.08), postMat);
+    post.position.set(x + px, (h + 0.08) / 2, z + pz);
+    root.add(post);
+  }
+  const map = signTexture('MOD', 0x38bdf8);
+  const sign = new THREE.Mesh(new THREE.PlaneGeometry(1.7, 0.4), new THREE.MeshBasicMaterial({ map, transparent: true, side: THREE.FrontSide, toneMapped: false }));
+  sign.position.set(x, 1.72, z + hz + 0.04);
+  sign.userData.billboard = true;
+  root.add(sign);
+}
+
 export function buildHall(parent, layout) {
   const old = parent.getObjectByName('team-hall');
   if (old) {
-    old.traverse((o) => { if (o.geometry) o.geometry.dispose(); });
+    old.traverse((o) => {
+      if (o.element?.parentNode) o.element.remove();
+      if (o.geometry) o.geometry.dispose();
+    });
     old.removeFromParent();
   }
   const root = new THREE.Group();
@@ -433,23 +608,8 @@ export function buildHall(parent, layout) {
   root.add(floor);
   addShell(root, floor.position.x, floor.position.z, fw, fd);
   addIndoorGreens(root, floor.position.x, floor.position.z, fw, fd);
-  if (layout.modMark) {
-    const m = layout.modMark;
-    const neon = new THREE.MeshBasicMaterial({ color: 0xe9d5ff, transparent: true, opacity: 0.85, blending: THREE.AdditiveBlending, depthWrite: false });
-    for (const [w, d, x, z] of [
-      [m.w, 0.045, m.x, m.z - m.d / 2], [m.w, 0.045, m.x, m.z + m.d / 2],
-      [0.045, m.d, m.x - m.w / 2, m.z], [0.045, m.d, m.x + m.w / 2, m.z],
-    ]) {
-      const line = new THREE.Mesh(new THREE.BoxGeometry(w, 0.015, d), neon);
-      line.position.set(x, 0.03, z);
-      root.add(line);
-    }
-    const map = signTexture('MoD', 0xe9d5ff);
-    const sign = new THREE.Mesh(new THREE.PlaneGeometry(1.8, 0.42), new THREE.MeshBasicMaterial({ map, transparent: true, side: THREE.FrontSide, toneMapped: false }));
-    sign.position.set(m.x, 1.35, m.z - m.d / 2);
-    sign.userData.billboard = true;
-    root.add(sign);
-  }
+  if (layout.modMark) addModRoom(root, layout.modMark);
+  addServer(root, layout.server || layout.hub || new THREE.Vector3());
   buildFurniture(root, layout.furn || [...layout.spots.values()]);
   parent.add(root);
   return root;

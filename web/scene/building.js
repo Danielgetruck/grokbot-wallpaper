@@ -16,7 +16,7 @@ const BLUR_TAIL = 0.4;                  // s for the blur to clear after the swa
 const BLUR_PX = 7;
 const REDUCED = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
 const CAB_H = 2.2;
-const NIGHT_TINT = [0.34, 0.18, 0.55];  // plum stand-in when a baked mesh has no night lightmap yet
+const NIGHT_TINT = [0.16, 0.28, 0.52];  // navy stand-in when a baked mesh has no night lightmap yet
 
 // Night lightmaps (assets/office/night/<mesh name>.jpg) are loaded lazily, only once --night > 0, shared by every
 // floor clone and disposed again after a stretch of full day (they are big: 3072x2304 for the floor).
