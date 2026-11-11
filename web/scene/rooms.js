@@ -1,9 +1,9 @@
 // One walled room per team, packed into a single hall. Group names are canvas text, drawn so Hebrew stays RTL.
 import * as THREE from 'three';
 import { CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
-import { isLeadName, isMasterName, isNumberedModName } from './modteam.js?v=19';
-import { buildFurniture } from './furniture.js?v=19';
-import { sharpTexture } from './tex.js?v=19';
+import { isLeadName, isMasterName, isNumberedModName } from './modteam.js?v=20';
+import { buildFurniture } from './furniture.js?v=20';
+import { sharpTexture } from './tex.js?v=20';
 
 const ACCENT = [0xc084fc, 0x22d3ee, 0xf0abfc, 0xa78bfa, 0x67e8f9, 0xe9d5ff, 0xfbbf24, 0x818cf8];
 

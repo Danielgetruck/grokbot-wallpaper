@@ -1,9 +1,9 @@
 // Glue: polls /api/state (CONTRACT §4), keeps the view (floor, selection), feeds the scene and the UI.
 // With #<topic> in the link it reads the user's bots from their channel instead (feed.js, lib/feedbase.js): no server.
 // Without either (static preview) it runs on web/data/demo-state.json with a local simulation.
-import { initScene, renderScene, zoom, focusBot } from './scene/scene.js?v=19';
-import { sfx } from './audio/sound.js?v=19';
-import { initHud, renderHud } from './scene/hud.js?v=19';
+import { initScene, renderScene, zoom, focusBot } from './scene/scene.js?v=20';
+import { sfx } from './audio/sound.js?v=20';
+import { initHud, renderHud } from './scene/hud.js?v=20';
 
 const POLL_MS = 1000;
 const view = { currentFloor: null, selectedBot: null };
@@ -20,7 +20,7 @@ if (WALLPAPER) document.documentElement.classList.add('wallpaper');
 document.documentElement.classList.add('hq-quiet');
 
 try {
-  ui = await import(WALLPAPER ? './wallpaper.js?v=19' : './ui/ui.js?v=19');
+  ui = await import(WALLPAPER ? './wallpaper.js?v=20' : './ui/ui.js?v=20');
 } catch (err) {
   console.warn('[app] UI module not available yet:', err.message);
 }
@@ -165,7 +165,7 @@ async function poll() {
 // ---------- the user's own bots: #<topic> ----------
 
 const DEMO = params.get('demo') === '1';
-const { parseFeedHash, importFeedKey } = await import('./lib/feedcrypt.js?v=19');
+const { parseFeedHash, importFeedKey } = await import('./lib/feedcrypt.js?v=20');
 const feedLink = parseFeedHash(location.hash);
 if (DEMO) startModDemo();
 else if (feedLink && !feedLink.keyB64) showLocked();
@@ -175,7 +175,7 @@ else if (feedLink?.keyB64) {
   if (!key) showLocked();
   else {
     const topic = feedLink.topic;
-    const { connectFeed } = await import('./feed.js?v=19');
+    const { connectFeed } = await import('./feed.js?v=20');
     connectFeed({ topic, key }, (data) => { state = data; render(); });
     addEventListener('hashchange', () => location.reload());
   }

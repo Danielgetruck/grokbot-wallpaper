@@ -16,7 +16,7 @@ const PREFIX = 'gbwenc1:';
 const TOPIC = /^[A-Za-z0-9_-]{6,64}$/;
 const KEY_B64 = /^[A-Za-z0-9_-]{43}$/;
 export const MAX_JSON = 4096;
-const MAX_BODY = 16384;
+const MAX_BODY = 4096;
 
 export function b64urlToBytes(s) {
   const src = String(s || '').replace(/-/g, '+').replace(/_/g, '/');

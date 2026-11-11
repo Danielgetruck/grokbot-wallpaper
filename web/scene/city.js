@@ -1,6 +1,6 @@
 // Daytime campus around the office: sky, lawns, gardens, and a low city only on the far horizon.
 import * as THREE from 'three';
-import { sharpTexture } from './tex.js?v=19';
+import { sharpTexture } from './tex.js?v=20';
 
 const SKY_FS = /* glsl */`
   uniform float uTime;
