@@ -64,15 +64,14 @@ test('post_status lines: type status, state/running, and a recent working Master
   assert.equal(st.bots.noa.status, 'working');
   assert.equal(st.feed.find((f) => f.name === 'Noa').to, 'Master');
   assert.equal(isWorking(st.bots.master, now), true);
-  assert.equal(isWorking(st.bots.lane, now), false);
-  assert.equal(isWorking(st.bots.mod, now), false);
-  assert.equal(isWorking(st.bots.qa, now), false);
-  assert.equal(isWorking(st.bots.porter, now), false);
   assert.equal(isWorking(st.bots.noa, now), true);
-  const stale = { status: 'working', effective_status: 'idle', last_event: new Date(now - RECENT_MS - MIN).toISOString() };
+  assert.equal(st.bots.mod.status, 'waiting_user');
+  const stale = { status: 'working', effective_status: 'working', last_event: new Date(now - RECENT_MS - MIN).toISOString() };
   assert.equal(isWorking(stale, now), false);
-  const fresh = { status: 'working', effective_status: 'idle', last_event: new Date(now - 2 * MIN).toISOString() };
+  const fresh = { status: 'idle', effective_status: 'idle', last_activity: new Date(now - 2 * MIN).toISOString() };
   assert.equal(isWorking(fresh, now), true);
+  const waiting = { status: 'waiting_user', last_event: new Date(now - 20 * MIN).toISOString() };
+  assert.equal(isWorking(waiting, now), false);
 });
 
 test('stuck: working with no event for > 30 min; version bumps on the timer alone', () => {

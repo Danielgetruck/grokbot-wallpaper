@@ -9,6 +9,8 @@
  * Style lives in web/styles.css under "wallpaper mode". All data goes in through textContent.
  */
 
+import { isWaiting, isWorking } from './lib/live.js?v=15';
+
 // English plural forms [one, other].
 const FORMS = {
   working: ['working', 'working'],
@@ -57,12 +59,9 @@ export function renderUI(state) {
   let working = 0, attention = 0, error = 0, total = 0;
   for (const bot of Object.values(state.bots || {})) {
     total++;
-    switch (bot.effective_status || bot.status) {
-      case 'working': working++; break;
-      case 'waiting_user': case 'stuck': attention++; break;
-      case 'error': error++; break;
-      default: break;
-    }
+    if (isWorking(bot)) working++;
+    if (isWaiting(bot)) attention++;
+    else if (!isWorking(bot) && (bot.effective_status || bot.status) === 'error') error++;
   }
   const counts = { working, attention, error };
   for (const key of Object.keys(counts)) {

@@ -25,7 +25,7 @@
  * back when the window grows. ?sheet=open starts with the sheet expanded (for screenshots).
  */
 
-import { isWorking } from '../lib/live.js?v=14';
+import { isWorking, isWaiting } from '../lib/live.js?v=15';
 
 // Resolved against this file, so it works from /web/index.html, from a server rooted at web/, and from the harness.
 const THUMB_BASE = new URL('../../assets/blobs/thumbs/', import.meta.url).href;
@@ -352,12 +352,11 @@ function counts(state) {
   if (bots && typeof bots === 'object' && Object.keys(bots).length) {
     for (const id of Object.keys(bots)) {
       const bot = bots[id];
+      const s = effStatus(bot);
       if (isWorking(bot)) out.working++;
-      else {
-        const s = effStatus(bot);
-        const key = s === 'working' ? 'idle' : s;
-        out[key] = (out[key] || 0) + 1;
-      }
+      else if (s === 'working') out.idle++;
+      else if (s !== 'waiting_user' && s !== 'stuck') out[s] = (out[s] || 0) + 1;
+      if (s === 'waiting_user' || s === 'stuck' || isWaiting(bot)) out[s === 'stuck' ? 'stuck' : 'waiting_user']++;
     }
   } else if (state.summary && typeof state.summary === 'object') {
     for (const s of Object.keys(out)) out[s] = Number(state.summary[s]) || 0;
@@ -519,7 +518,7 @@ function buildTopbar(root) {
   const demo = h('span', { class: 'bhq-demo bhq-surface', text: 'DEMO', hidden: true, title: 'Demo data, not real bots' });
   // share an image of the office (web/share/, loaded on first use); audio/sound.js puts the speaker in front of it
   const share = h('button', { class: 'bhq-share bhq-surface', type: 'button', 'aria-label': 'Share an image of your office', title: 'Share', 'aria-haspopup': 'dialog', 'aria-expanded': 'false' }, svg(ICON.share));
-  const loadShare = () => import('../share/share.js?v=14');
+  const loadShare = () => import('../share/share.js?v=15');
   share.addEventListener('pointerenter', loadShare, { once: true });
   share.addEventListener('click', () => {
     loadShare().then((m) => m.toggleShare({ anchor: share, state: U.last.state }), (err) => console.warn('[ui] share', err));
@@ -1346,8 +1345,8 @@ function renderTeam(state, floor, o) {
     const bot = bots[id];
     const s = effStatus(bot);
     if (isWorking(bot)) working++;
-    else if (s === 'waiting_user' || s === 'stuck') waiting++;
-    else if (s === 'error') errors++;
+    if (s === 'waiting_user' || s === 'stuck') waiting++;
+    else if (!isWorking(bot) && s === 'error') errors++;
   }
   setText(p.teamSub, floor ? n + ' ' + plural(n, 'bot', 'bots') : (U.phone ? 'Pick a floor above' : 'Pick a floor on the left'));
   // green while anyone works, graphite at rest (the wallpaper's team card)

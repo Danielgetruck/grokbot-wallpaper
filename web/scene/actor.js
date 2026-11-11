@@ -2,11 +2,11 @@
 // v2.5 behaviour: blobs turn toward the cursor (ground point within ~3.5 m, seated bots with a limited turn),
 // their eyes follow it, they hop when the cursor is within ~0.9 m. Everything moves on springs.
 import * as THREE from 'three';
-import { isWorking } from '../lib/live.js?v=14';
+import { isWorking } from '../lib/live.js?v=15';
 import { CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
-import { Spring, REDUCED, clamp, smoothstep } from './spring.js?v=14';
-import { createWorker } from './worker.js?v=14';
-import { isLeadName } from './modteam.js?v=14';
+import { Spring, REDUCED, clamp, smoothstep } from './spring.js?v=15';
+import { createWorker } from './worker.js?v=15';
+import { isLeadName } from './modteam.js?v=15';
 
 export const STATUS_COLOR = {
   working: '#34C759', idle: '#A1A1A6', waiting_user: '#FF9F0A', error: '#FF3B30', stuck: '#FF9500', done: '#0A84FF',
@@ -419,7 +419,7 @@ export class Actor {
     const w = this.worker;
     if (!w) return;
     const s = this.status;
-    const on = isWorking(this.bot) || s === 'working' || s === 'active' || s === 'busy' || s === 'running';
+    const on = isWorking(this.bot);
     if (w.beacon) {
       const hex = on ? 0x22c55e : 0xef4444;
       w.beacon.material.color.setHex(hex);

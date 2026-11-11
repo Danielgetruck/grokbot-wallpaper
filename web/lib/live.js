@@ -1,14 +1,11 @@
-// Who is working right now, for the green marker, the working count, and the green streaks.
-// A posted working/active/busy/running line counts, and so does any non-rest update from the last 15 minutes.
-// done, idle, waiting_user and offline stay red.
+// Green marker and the "working" count.
+// The feed refresh marks recent activity as working, but it only arrives every 15 minutes, so the page also
+// watches the last-activity time: a bot is green when its state is working/active/busy/running, or its
+// last activity is within 15 minutes. Past that, it turns red even if the last payload still says working.
 
 export const RECENT_MS = 15 * 60 * 1000;
 
 const LIVE = new Set(['working', 'active', 'busy', 'running', 'in_progress', 'processing', 'work']);
-const REST = new Set([
-  'idle', 'done', 'waiting_user', 'waiting', 'offline', 'off', 'error', 'stuck',
-  'sleeping', 'paused', 'stopped', 'resting', 'away',
-]);
 
 const MAP = {
   working: 'working', active: 'working', busy: 'working', running: 'working', in_progress: 'working', processing: 'working', work: 'working',
@@ -28,23 +25,38 @@ function mapped(value) {
   return MAP[k] || k;
 }
 
-function ageMs(bot, now) {
-  const t = Date.parse(bot.last_event || bot.last_seen || bot.since || '');
-  if (!Number.isFinite(t)) return null;
-  return Math.max(0, now - t);
+function timeOf(...values) {
+  let best = null;
+  for (const value of values) {
+    const t = typeof value === 'number' ? value : Date.parse(value || '');
+    if (Number.isFinite(t) && (best == null || t > best)) best = t;
+  }
+  return best;
 }
 
-/** True when this bot should show a green marker and a green streak toward Master. */
+/** Milliseconds of the newest activity/update stamp, or null when the bot has none. */
+export function activityAt(bot) {
+  if (!bot || typeof bot !== 'object') return null;
+  return timeOf(bot.last_activity, bot.updated, bot.updated_at, bot.activity_at, bot.lastActivity, bot.last_event, bot.last_seen, bot.since);
+}
+
+function liveWord(bot) {
+  const raw = bot.state ?? bot.status ?? bot.effective_status;
+  const name = mapped(raw);
+  return name === 'working' || LIVE.has(key(raw)) || LIVE.has(key(bot.effective_status)) || mapped(bot.effective_status) === 'working';
+}
+
+/** True when the marker is green and the bot counts as working. */
 export function isWorking(bot, now = Date.now()) {
   if (!bot || typeof bot !== 'object') return false;
-  const posted = mapped(bot.status);
-  const eff = mapped(bot.effective_status);
-  if (REST.has(posted) || REST.has(key(bot.status))) return false;
-  if (eff === 'working' || posted === 'working' || LIVE.has(key(bot.status)) || LIVE.has(key(bot.effective_status))) {
-    if (eff === 'working') return true;
-    const age = ageMs(bot, now);
-    return age == null || age <= RECENT_MS;
-  }
-  const age = ageMs(bot, now);
-  return age != null && age <= RECENT_MS;
+  const at = activityAt(bot);
+  if (at != null) return now - at <= RECENT_MS;
+  return liveWord(bot);
+}
+
+/** waiting_user (and stuck, which also needs a person) for the waiting counter. */
+export function isWaiting(bot) {
+  if (!bot || typeof bot !== 'object') return false;
+  const name = mapped(bot.effective_status || bot.status || bot.state);
+  return name === 'waiting_user' || name === 'stuck';
 }

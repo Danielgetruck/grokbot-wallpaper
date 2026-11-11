@@ -1,6 +1,6 @@
 // State reducer: journal records -> CONTRACT §4 state. Pure in-memory, clock injectable for tests. Runs in Node (the
 // server) and in the browser (the office reading a bots channel on ntfy.sh), so: no Node-only APIs here.
-import { slugify, hashColor, cleanStr, makeTime, parseTime } from './util.js?v=14';
+import { slugify, hashColor, cleanStr, makeTime, parseTime } from './util.js?v=15';
 
 export const LIMITS = {
   MAX_PER_FLOOR: 80,
@@ -247,6 +247,8 @@ export class StateStore {
     const group = cleanStr(rec.group, 60);
     if (group) bot.group = group;
     bot.lastMs = bot.lastMs === null ? ms : Math.max(bot.lastMs, ms);
+    const activity = parseTime(rec.last_activity ?? rec.activity_at ?? rec.updated_at ?? rec.updated);
+    bot.activityMs = activity != null ? Math.max(bot.activityMs ?? 0, activity) : bot.lastMs;
     if (rec.listed !== true) bot.seenMs = Math.max(bot.seenMs ?? ms, ms);   // its own line, not a roster entry made for it
 
     bot.history.unshift({ ms, status, step });
@@ -550,6 +552,8 @@ export class StateStore {
         since: iso(bot.sinceMs),
         last_event: iso(bot.lastMs),
         last_seen: iso(bot.seenMs),
+        last_activity: iso(bot.activityMs ?? bot.lastMs),
+        updated: iso(bot.activityMs ?? bot.lastMs),
         unreported: this.unreportedOf(bot, now),
         usage_pct: pct ?? null,
         usage_share: pct !== undefined && total ? Math.round(Math.min(1, Math.max(0, pct / total)) * 1000) / 1000 : null,
