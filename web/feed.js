@@ -1,12 +1,7 @@
-// Bots-only mode: the office reads the user's bots straight from their channel. No server, no tunnel.
-// The link is …/#<topic>. A plain link reads the same topic on two mailboxes and merges them: our relay (RELAY, relay/ in
-// this repo, where bots set up with the current prompt post) and ntfy.sh (FEED_BASE in lib/feedbase.js, where bots set
-// up with the first prompt post). #<topic>@<host>, ?feed=<host> or the older #<topic>&ntfy=<server> name one mailbox
-// (a self-hosted ntfy) and read only that. The topic lives in the hash, so it never reaches any server but those. The
-// same reducer the local server uses (lib/state.js) turns the lines into the office's state. The mailboxes keep 12 hours,
-// so the newest lines are cached per topic in localStorage and replayed first: after a quiet night the office is not
-// empty, every bot is still there, resting. A `working` bot that stays silent for 20 minutes counts as idle (it forgot
-// its closing line).
+// Bots-only mode: the office reads the user's bots from ntfy.sh. The link is …/#<topic>.<key>. The key never leaves
+// the hash: each message body is `gbwenc1:` + AES-256-GCM, and a body that does not decrypt is dropped. The topic is
+// not a secret. Decrypted lines are cached for this tab only (sessionStorage, keyed by the topic). A `working` bot
+// that stays silent for 20 minutes counts as idle (it forgot its closing line).
 //
 // Lines on the channel (one JSON object per message, at most 4 KB, anything else is dropped):
 //   {"bot":"…","status":"working|idle|waiting_user|error|done","step":"…"}     a status change
@@ -20,31 +15,30 @@
 // On top of the server's state the office gets state.finished (done lines of the last 24 h, newest first),
 // state.routines (every bot's routines, soonest first) and state.check (the latest status check: who has answered), for
 // the «Finished», «Routines» and «Status check» panels.
-import { StateStore, botIdFor } from './lib/state.js?v=18';
-import { FEED_BASE, feedFromLink } from './lib/feedbase.js?v=18';
+import { StateStore, botIdFor } from './lib/state.js?v=19';
+import { FEED_BASE, feedFromLink } from './lib/feedbase.js?v=19';
+import { openFeedMessage } from './lib/feedcrypt.js?v=19';
 
-const RELAY = 'https://relay.0xcodila.com', NTFY = 'https://ntfy.sh';
-const MAX_LINE = 4096, KEEP = 600, TICK_MS = 30e3, DAY_MS = 24 * 3600e3, PING_MS = 60e3;
+const NTFY = 'https://ntfy.sh';
+const MAX_LINE = 4096, KEEP = 600, TICK_MS = 30e3, DAY_MS = 24 * 3600e3;
 const QUIET_MS = 20 * 60e3, CHECK_MS = 6 * 3600e3;    // a silent worker turns idle; a status check stays up this long
 // Everyone's bots, ours included, are built from their look (the app's 14 avatars and 11 colours, read from a
 // screenshot), so a bot in the office is the bot in the app. The hand-made GLBs in assets/blobs/ stay for the local server.
 const HANDMADE = new Set();
 
-/** The page's hash and query -> { topic, servers: [mailboxes, no trailing slash] }, or null without a topic.
- *  A plain link reads both mailboxes; a link that names one reads that one. */
+/** The page's hash and query -> { topic }, or null without a topic. The encrypted office reads ntfy.sh only. */
 export function feedFromHash(hash, search = '') {
   const f = feedFromLink({ hash: hash || '', search });
-  if (!f) return null;
-  return { topic: f.topic, servers: f.base === FEED_BASE ? [RELAY, NTFY] : [f.base.replace(/\/$/, '')] };
+  if (!f || f.base !== FEED_BASE) return null;
+  return { topic: f.topic, servers: [NTFY] };
 }
 
-/** Rebuild from cache + each mailbox's last 12 h, then follow them live. Calls onState(state) on every change. */
-export async function connectFeed({ topic, servers }, onState) {
-  const sources = servers.map((server) => ({ server, tag: server.startsWith(RELAY) ? 'relay' : 'ntfy', base: `${server}/${encodeURIComponent(topic)}`, lastId: null }));
-  const usual = servers.length > 1;                      // the plain link: both mailboxes, one cache
-  const cacheKey = usual ? `bothq.feed.v8.${topic}` : `bothq.feed.v8.${servers[0]}.${topic}`;
-  try { localStorage.removeItem('bothq.floor'); } catch { /* private mode */ }
-  const oldKey = `bothq.feed.${NTFY}.${topic}`;         // the cache of the first single-mailbox office (ntfy.sh only)
+/** Rebuild from cache + each mailbox's last 12 h, then follow them live. Calls onState(state) on every change.
+ *  `key` is a non-extractable CryptoKey. Without it nothing is read. */
+export async function connectFeed({ topic, key }, onState) {
+  if (!key || typeof topic !== 'string') return;
+  const sources = [{ tag: 'ntfy', base: `${NTFY}/${encodeURIComponent(topic)}`, lastId: null }];
+  const cacheKey = `bothq.feed.s1.${topic}`;
   const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'Europe/Sofia';
   const store = new StateStore({ tz, quietIdleMs: QUIET_MS, hasAvatar: (id) => HANDMADE.has(id) });   // no GLB probe: every bot is generated from its look
   const cfg = {};                                        // per bot name: { look, chat_url } -> the store's bots config
@@ -56,29 +50,24 @@ export async function connectFeed({ topic, servers }, onState) {
   const seen = new Set();
 
   lines = cached(cacheKey).map((l) => ({ ...l, src: l.src || sources[0].tag }));
-  if (usual) lines.push(...cached(oldKey).map((l) => ({ ...l, src: l.src || 'ntfy' })));
   await Promise.all(sources.map(async (s) => {
     try {
       const text = await (await fetch(`${s.base}/json?poll=1&since=12h`, { cache: 'no-store' })).text();
-      for (const row of text.split('\n')) if (row) keep(s, JSON.parse(row));
-    } catch { /* offline or down: the other mailbox and the cache still show the office */ }
+      for (const row of text.split('\n')) if (row) {
+        try { await keep(s, JSON.parse(row)); } catch { /* junk row */ }
+      }
+    } catch { /* offline or down: the session cache still shows the office */ }
   }));
   lines = lines.filter(fresh).sort((a, b) => a.time - b.time);   // stable: lines of one second keep the mailbox's order
   for (const l of lines) ingest(l, true);
-  for (const s of sources) s.lastId = lines.findLast((l) => l.src === s.tag)?.id ?? null;
   save();
-  if (usual) try { localStorage.removeItem(oldKey); } catch { /* private mode */ }
   publish();
-  const bots = Object.values(cfg);
-  beacon(topic, { bots: store.bots.size, floors: new Set(bots.map((c) => c.floor).filter(Boolean)).size, tags: new Set(lines.map((l) => l.src)),
-    has: { usage: lines.some((l) => typeof l.message === 'string' && l.message.includes('"usage"')), routines: routines.size > 0,
-      chat: bots.some((c) => c.chat_url), teams: bots.some((c) => c.floor) } });
 
   for (const s of sources) follow(s);
   setInterval(() => { const v = store.version, s = store.snapshot(); if (store.version !== v) onState(extras(s)); }, TICK_MS);
 
   function cached(key) {
-    try { return JSON.parse(localStorage.getItem(key)) || []; } catch { return []; }
+    try { return JSON.parse(sessionStorage.getItem(key)) || []; } catch { return []; }
   }
   function fresh(l) {                                    // once per mailbox id, and once per (time, text) across mailboxes
     const a = `${l.src} ${l.id}`, b = `${l.time} ${l.message}`;
@@ -86,13 +75,23 @@ export async function connectFeed({ topic, servers }, onState) {
     seen.add(a).add(b);
     return true;
   }
-  function keep(s, m) {                                  // a message of a history request, into `lines`
-    if (m?.event === 'message' && typeof m.id === 'string') lines.push({ id: m.id, time: Number(m.time) || 0, message: m.message, src: s.tag });
+  async function reveal(body) {
+    const text = await openFeedMessage(body, key);
+    return typeof text === 'string' && text.length <= MAX_LINE ? text : null;
   }
-  function take(s, m) {                                  // a live message: new -> ingest; true if the office changed
+  async function keep(s, m) {                            // a history message, stored only after it decrypts
+    if (m?.event !== 'message' || typeof m.id !== 'string') return;
+    s.lastId = m.id;                                     // advance even when the body is dropped, so catch-up does not spin
+    const message = await reveal(m.message);
+    if (message == null) return;
+    lines.push({ id: m.id, time: Number(m.time) || 0, message, src: s.tag });
+  }
+  async function take(s, m) {                            // a live message: new -> ingest; true if the office changed
     if (m?.event !== 'message' || typeof m.id !== 'string') return false;
     s.lastId = m.id;
-    const l = { id: m.id, time: Number(m.time) || Date.now() / 1000, message: m.message, src: s.tag };
+    const message = await reveal(m.message);
+    if (message == null) return false;
+    const l = { id: m.id, time: Number(m.time) || Date.now() / 1000, message, src: s.tag };
     if (!fresh(l)) return false;
     lines.push(l);
     if (lines.length > KEEP * 1.5) lines = lines.slice(-KEEP);
@@ -100,31 +99,24 @@ export async function connectFeed({ topic, servers }, onState) {
     saveTimer = setTimeout(save, 2000);
     return ingest(l, false);
   }
-  function follow(s) {                                   // ntfy: an event stream; the relay: a WebSocket its server sleeps through
-    const on = (data) => { try { if (take(s, JSON.parse(data))) publish(); } catch { /* keepalive or junk */ } };
-    if (s.tag !== 'relay') {
-      const live = new EventSource(`${s.base}/sse`);
-      live.onopen = () => catchUp(s);                    // also after a reconnect: fetch what was missed
-      live.onmessage = (e) => on(e.data);
-      return;
-    }
-    let wait = 1e3, heard = Date.now();
-    (function open() {
-      const ws = new WebSocket(`${s.base.replace(/^http/, 'ws')}/ws`);
-      const ping = setInterval(() => {                   // "pong" comes back without waking the relay
-        if (Date.now() - heard > 2.5 * PING_MS) ws.close();   // silent: a dead link after sleep, start over
-        else if (ws.readyState === 1) ws.send('ping');
-      }, PING_MS);
-      ws.onopen = () => { wait = 1e3; heard = Date.now(); catchUp(s); };
-      ws.onmessage = (e) => { heard = Date.now(); if (e.data !== 'pong') on(e.data); };
-      ws.onclose = () => { clearInterval(ping); setTimeout(open, wait); wait = Math.min(wait * 2, 60e3); };
-    })();
+  function follow(s) {
+    const on = (data) => {
+      let m;
+      try { m = JSON.parse(data); } catch { return; }
+      take(s, m).then((changed) => { if (changed) publish(); }).catch(() => {});
+    };
+    const live = new EventSource(`${s.base}/sse`);
+    live.onopen = () => catchUp(s);                      // also after a reconnect: fetch what was missed
+    live.onmessage = (e) => on(e.data);
   }
   async function catchUp(s) {
     try {
       const text = await (await fetch(`${s.base}/json?poll=1&since=${s.lastId ?? '12h'}`, { cache: 'no-store' })).text();
       let changed = false;
-      for (const row of text.split('\n')) if (row && take(s, JSON.parse(row))) changed = true;
+      for (const row of text.split('\n')) {
+        if (!row) continue;
+        try { if (await take(s, JSON.parse(row))) changed = true; } catch { /* junk row */ }
+      }
       if (changed) publish();
     } catch { /* the stream retries by itself */ }
   }
@@ -218,27 +210,7 @@ export async function connectFeed({ topic, servers }, onState) {
     return s;
   }
   function publish() { store.commit(); onState(extras(store.snapshot())); }
-  function save() { try { localStorage.setItem(cacheKey, JSON.stringify(lines.slice(-KEEP))); } catch { /* private mode: not cached */ } }
-}
-
-/** Two anonymous pings for the private usage count: one when the office opens (a hash of the topic, never the topic; how
- *  many bots and teams; which mailbox; phone or not; which parts of the prompt are set up), one when the visit ends. */
-async function beacon(topic, { bots, floors, tags, has }) {
-  try {
-    const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(topic)));
-    const h = [...digest.slice(0, 8)].map((b) => b.toString(16).padStart(2, '0')).join('');
-    const src = tags.has('relay') ? (tags.has('ntfy') ? 'both' : 'relay') : tags.has('ntfy') ? 'ntfy' : 'none';
-    const phone = navigator.userAgentData?.mobile ?? /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent || '');
-    const send = (data) => {                             // a string goes as text/plain: no CORS preflight
-      const body = JSON.stringify(data);
-      if (!navigator.sendBeacon?.(`${RELAY}/_beacon`, body)) fetch(`${RELAY}/_beacon`, { method: 'POST', body, keepalive: true }).catch(() => {});
-    };
-    send({ h, bots, floors, src, phone, has });
-    let ended = false;
-    const end = () => { if (!ended) { ended = true; send({ h, secs: Math.min(Math.round(performance.now() / 1000), 7 * 86400) }); } };
-    globalThis.addEventListener?.('pagehide', end);
-    globalThis.document?.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') end(); });
-  } catch { /* stats are optional */ }
+  function save() { try { sessionStorage.setItem(cacheKey, JSON.stringify(lines.slice(-KEEP))); } catch { /* private mode: memory only */ } }
 }
 
 function isMap(v) { return !!v && typeof v === 'object' && !Array.isArray(v); }
