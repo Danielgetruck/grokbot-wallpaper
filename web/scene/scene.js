@@ -5,20 +5,21 @@ import { CSS2DRenderer } from 'three/addons/renderers/CSS2DRenderer.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
-import { loadOfficeAssets } from './office.js?v=11';
-import { Building } from './building.js?v=11';
-import { createDaylight } from './daylight.js?v=11';
-import { createPost } from './post.js?v=11';
-import { studioCss } from './studio.js?v=11';
-import { Actor } from './actor.js?v=11';
-import { generateBlob } from './blobgen.js?v=11';
-import { Spring, clamp, REDUCED } from './spring.js?v=11';
-import { sofiaHour, fontsPromise } from './walls.js?v=11';
-import { applyDesks, tick as tickLife, ensureCat, petCat, sendMail, addressedTo, cullLabels } from './life.js?v=11';
-import { syncTeam, tickTeam, blockedDesk } from './modteam.js?v=11';
-import { spawnBeam, spawnTrail, tickPackets, setNetwork, tickNetwork, setFlowPace } from './packets.js?v=11';
-import { useHall, layoutHall, buildHall, faceSign, tickFloor } from './rooms.js?v=11';
-import { initQuality, getQuality, isSoftGpu, tickPolish, ensureDust, tickDust, syncRug, accentFor } from './polish.js?v=11';
+import { loadOfficeAssets } from './office.js?v=12';
+import { Building } from './building.js?v=12';
+import { createDaylight } from './daylight.js?v=12';
+import { createPost } from './post.js?v=12';
+import { studioCss } from './studio.js?v=12';
+import { Actor } from './actor.js?v=12';
+import { generateBlob } from './blobgen.js?v=12';
+import { Spring, clamp, REDUCED } from './spring.js?v=12';
+import { sofiaHour, fontsPromise } from './walls.js?v=12';
+import { applyDesks, tick as tickLife, ensureCat, petCat, sendMail, addressedTo, cullLabels } from './life.js?v=12';
+import { syncTeam, tickTeam, blockedDesk } from './modteam.js?v=12';
+import { spawnBeam, spawnTrail, tickPackets, setNetwork, tickNetwork, setFlowPace } from './packets.js?v=12';
+import { useHall, layoutHall, buildHall, faceSign, tickFloor } from './rooms.js?v=12';
+import { initQuality, getQuality, isSoftGpu, tickPolish, ensureDust, tickDust, syncRug, accentFor } from './polish.js?v=12';
+import { installCity } from './city.js?v=12';
 
 // Relative to the page (not the site root), so the office also works when it is published in a sub-folder, e.g.
 // https://bodila51.github.io/grokbot-wallpaper/office/ -> ../assets. Locally the page is at `/`, where this is /assets.
@@ -34,7 +35,7 @@ const SIN_E = Math.sin(Math.atan(1 / Math.SQRT2));      // sin(35.264°) = groun
 // the camera), neighbours alternating so tags never collide.
 const DESK_ORDER = [1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20];
 
-let renderer, labels, camera, scene, container, callbacks, daylight, building, post;
+let renderer, labels, camera, scene, container, callbacks, daylight, building, post, city;
 let assets = null;
 let hallLayout = null;
 let lastState = null, lastView = { currentFloor: null, selectedBot: null };
@@ -107,6 +108,7 @@ export function initScene(el, cbs = {}) {
   container.append(labels.domElement);
 
   scene = new THREE.Scene();
+  city = installCity(scene);
   const pmrem = new THREE.PMREMGenerator(renderer);
   scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
   scene.environmentIntensity = 0.2;
@@ -123,7 +125,7 @@ export function initScene(el, cbs = {}) {
   document.documentElement.dataset.sky = 'studio';        // white backdrop at every hour: the UI stays on light glass (web/styles.css)
   container.style.background = studioCss();               // the same backdrop as the post pass draws, for the first moments
 
-  camera = new THREE.PerspectiveCamera(38, 1, 0.15, 180);
+  camera = new THREE.PerspectiveCamera(38, 1, 0.15, 520);
   camera.position.set(12, 10, 12);
   camera.lookAt(0, 0.6, 0);
 
@@ -787,6 +789,7 @@ function frame(t) {
     tickNetwork(REDUCED ? 0 : dt);
     tickPolish(open.obj, daylight?.state?.night || 0);
     tickFloor(nowSec);
+    city.tick(nowSec);
     const hallMesh = open.root.getObjectByName('team-hall');
     if (hallMesh) {
       hallMesh.updateMatrixWorld(true);

@@ -61,9 +61,9 @@
   --alert-strong: color-mix(in srgb, #FFD590 var(--n), #7A4600);
 
   /* page + scene backdrop: black into violet in both day and night (the WebGL studio pass uses the same stops) */
-  --bg-0: color-mix(in srgb, #3a1468 var(--n), #5b21b6);
-  --bg-1: color-mix(in srgb, #140820 var(--n), #2a1050);
-  --bg-2: color-mix(in srgb, #05030c var(--n), #070412);
+  --bg-0: #100e18;
+  --bg-1: #08070d;
+  --bg-2: #030208;
 
   /* layout */
   --gutter: 24px;

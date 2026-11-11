@@ -1,7 +1,7 @@
 // One walled room per team, packed into a single hall. Group names are canvas text, drawn so Hebrew stays RTL.
 import * as THREE from 'three';
-import { isFamilyName, isLeadName, isMasterName } from './modteam.js?v=11';
-import { buildFurniture } from './furniture.js?v=11';
+import { isFamilyName, isLeadName, isMasterName } from './modteam.js?v=12';
+import { buildFurniture } from './furniture.js?v=12';
 
 const ACCENT = [0xc084fc, 0x22d3ee, 0xf0abfc, 0xa78bfa, 0x67e8f9, 0xe9d5ff, 0xfbbf24, 0x818cf8];
 
@@ -242,9 +242,9 @@ function whiteFloorMaterial() {
   const c = document.createElement('canvas');
   c.width = 512; c.height = 512;
   const g = c.getContext('2d');
-  g.fillStyle = '#e7e2d8';
+  g.fillStyle = '#2a2a33';
   g.fillRect(0, 0, 512, 512);
-  g.strokeStyle = '#cfc8bc';
+  g.strokeStyle = '#1c1c24';
   g.lineWidth = 3;
   const tile = 64;
   for (let i = 0; i <= 512; i += tile) {
@@ -259,45 +259,8 @@ function whiteFloorMaterial() {
   map.colorSpace = THREE.SRGBColorSpace;
   map.anisotropy = 8;
   return new THREE.MeshStandardMaterial({
-    map, color: 0xf3efe8, roughness: 0.58, metalness: 0.02, envMapIntensity: 0.15,
+    map, color: 0xffffff, roughness: 0.42, metalness: 0.18, envMapIntensity: 0.38,
   });
-}
-
-function nightViewTexture() {
-  const c = document.createElement('canvas');
-  c.width = 512; c.height = 320;
-  const g = c.getContext('2d');
-  const sky = g.createLinearGradient(0, 0, 0, 320);
-  sky.addColorStop(0, '#070414');
-  sky.addColorStop(0.62, '#1a1244');
-  sky.addColorStop(1, '#0c1428');
-  g.fillStyle = sky;
-  g.fillRect(0, 0, 512, 320);
-  for (let i = 0; i < 90; i++) {
-    const x = Math.random() * 512;
-    const y = Math.random() * 170;
-    g.fillStyle = `rgba(255,255,255,${0.35 + Math.random() * 0.65})`;
-    g.fillRect(x, y, Math.random() > 0.8 ? 2 : 1, Math.random() > 0.8 ? 2 : 1);
-  }
-  for (let i = 0; i < 16; i++) {
-    const bw = 16 + Math.random() * 26;
-    const bh = 28 + Math.random() * 78;
-    const x = i * 32;
-    g.fillStyle = '#10182e';
-    g.fillRect(x, 320 - bh, bw, bh);
-    for (let wy = 320 - bh + 6; wy < 308; wy += 8) {
-      for (let wx = x + 3; wx < x + bw - 3; wx += 6) {
-        if (Math.random() > 0.5) {
-          g.fillStyle = Math.random() > 0.7 ? '#f2d48a' : '#9ecbff';
-          g.fillRect(wx, wy, 2, 2);
-        }
-      }
-    }
-  }
-  const t = new THREE.CanvasTexture(c);
-  t.colorSpace = THREE.SRGBColorSpace;
-  t.anisotropy = 8;
-  return t;
 }
 
 function starField(w, d, at) {
@@ -328,8 +291,6 @@ function addShell(root, cx, cz, fw, fd) {
     color: 0x1a2744, roughness: 0.15, metalness: 0.04, transparent: true, opacity: 0.22,
     emissive: 0x000000, emissiveIntensity: 0, side: THREE.DoubleSide, depthWrite: false,
   });
-  const view = nightViewTexture();
-  const outside = new THREE.MeshBasicMaterial({ map: view, side: THREE.DoubleSide, toneMapped: true });
   const neon = new THREE.MeshBasicMaterial({ color: 0xc084fc, transparent: true, opacity: 0.75, blending: THREE.AdditiveBlending, depthWrite: false });
   neonStrips = [];
 
@@ -373,9 +334,7 @@ function addShell(root, cx, cz, fw, fd) {
       right.position.x = ox + winW / 2;
       const pane = new THREE.Mesh(new THREE.PlaneGeometry(winW, tall - cutH - 0.7), glass);
       pane.position.set(ox, (cutH + tall) / 2 + 0.05, 0.02);
-      const sky = new THREE.Mesh(new THREE.PlaneGeometry(winW * 0.92, (tall - cutH - 0.7) * 0.92), outside);
-      sky.position.set(ox, (cutH + tall) / 2 + 0.05, -0.04);
-      g.add(sill, header, left, right, pane, sky);
+      g.add(sill, header, left, right, pane);
     }
     const pierL = new THREE.Mesh(new THREE.BoxGeometry(0.2, tall - cutH, 0.14), frame);
     pierL.position.set(-span / 2 + 0.1, (tall + cutH) / 2, 0);
