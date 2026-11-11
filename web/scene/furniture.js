@@ -60,12 +60,20 @@ function workstationTemplate() {
     g.add(part(new THREE.BoxGeometry(0.42, 0.03, 0.06), 'metal', x, 0.04, 0.64));
     g.add(part(new THREE.BoxGeometry(0.42, 0.03, 0.06), 'metal', x, 0.04, 1.0));
   }
-  // dual monitors on one arm
-  g.add(part(new THREE.CylinderGeometry(0.018, 0.022, 0.16, 8), 'metal', 0, 0.84, 1.05));
-  g.add(part(new THREE.BoxGeometry(0.7, 0.02, 0.02), 'metal', 0, 0.96, 1.02));
+  // dual monitors on the far edge of the desk. The lit face points back at the chair (+Z of each rig).
+  g.add(part(new THREE.CylinderGeometry(0.018, 0.022, 0.16, 8), 'metal', 0, 0.84, 1.08));
+  g.add(part(new THREE.BoxGeometry(0.7, 0.02, 0.02), 'metal', 0, 0.96, 1.06));
   for (const x of [-0.28, 0.28]) {
-    g.add(part(new THREE.BoxGeometry(0.46, 0.28, 0.02), 'bezel', x, 1.12, 1.02, -0.12, x < 0 ? 0.18 : -0.18, 0));
-    g.add(part(new THREE.PlaneGeometry(0.4, 0.22), 'screen', x, 1.12, 1.035, -0.12, x < 0 ? 0.18 : -0.18, 0));
+    const rig = new THREE.Group();
+    rig.position.set(x, 1.12, 1.08);
+    const bezel = new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.28, 0.02), mat.bezel);
+    bezel.userData.mat = 'bezel';
+    const screen = new THREE.Mesh(new THREE.PlaneGeometry(0.4, 0.22), mat.screen);
+    screen.position.z = 0.012;
+    screen.userData.mat = 'screen';
+    rig.add(bezel, screen);
+    rig.lookAt(x * 0.25, 0.92, 0.05);
+    g.add(rig);
   }
   g.add(part(new THREE.BoxGeometry(0.36, 0.012, 0.22), 'paper', -0.05, 0.762, 0.62));
   g.add(part(new THREE.BoxGeometry(0.34, 0.016, 0.12), 'bezel', -0.05, 0.772, 0.62));

@@ -1,9 +1,9 @@
 // Glue: polls /api/state (CONTRACT §4), keeps the view (floor, selection), feeds the scene and the UI.
 // With #<topic> in the link it reads the user's bots from their channel instead (feed.js, lib/feedbase.js): no server.
 // Without either (static preview) it runs on web/data/demo-state.json with a local simulation.
-import { initScene, renderScene, zoom, focusBot } from './scene/scene.js?v=12';
-import { sfx } from './audio/sound.js?v=12';
-import { initHud, renderHud } from './scene/hud.js?v=12';
+import { initScene, renderScene, zoom, focusBot } from './scene/scene.js?v=16';
+import { sfx } from './audio/sound.js?v=16';
+import { initHud, renderHud } from './scene/hud.js?v=16';
 
 const POLL_MS = 1000;
 const view = { currentFloor: null, selectedBot: null };
@@ -20,7 +20,7 @@ if (WALLPAPER) document.documentElement.classList.add('wallpaper');
 document.documentElement.classList.add('hq-quiet');
 
 try {
-  ui = await import(WALLPAPER ? './wallpaper.js?v=12' : './ui/ui.js?v=12');
+  ui = await import(WALLPAPER ? './wallpaper.js?v=16' : './ui/ui.js?v=16');
 } catch (err) {
   console.warn('[app] UI module not available yet:', err.message);
 }
@@ -103,8 +103,15 @@ function asOneOffice(s) {
   const ids = Object.keys(s.bots);
   if (!ids.length) return s;
   const bots = {};
-  for (const id of ids) bots[id] = { ...s.bots[id], floor: 'office' };
-  return { ...s, bots, floors: [{ id: 'office', name: 'הצוות', order: 1, bots: ids }] };
+  const counts = { working: 0, idle: 0, waiting_user: 0, error: 0, stuck: 0, done: 0 };
+  for (const id of ids) {
+    const b = { ...s.bots[id], floor: 'office' };
+    bots[id] = b;
+    const st = b.effective_status || b.status || 'idle';
+    if (Object.prototype.hasOwnProperty.call(counts, st)) counts[st]++;
+    else counts.idle++;
+  }
+  return { ...s, bots, summary: { ...(s.summary || {}), ...counts, total: ids.length }, floors: [{ id: 'office', name: 'הצוות', order: 1, bots: ids, counts }] };
 }
 
 function render() {
@@ -117,6 +124,10 @@ function render() {
   if (!WALLPAPER) renderHud(office, view);
   if (!WALLPAPER) soundStatusChanges();
 }
+
+// The feed refresh is every 15 minutes. Re-read each bot's last activity twice a minute so a green
+// marker and the working count turn off once that activity is older than 15 minutes.
+setInterval(() => { if (!document.hidden && state) render(); }, 30_000);
 
 // A bot that just started waiting for you, failed or finished gets a short sound (one per batch, the most urgent).
 // The first state is the baseline, so opening the page or replaying the channel's history stays quiet.
@@ -154,10 +165,10 @@ async function poll() {
 // ---------- the user's own bots: #<topic> ----------
 
 const DEMO = params.get('demo') === '1';
-const { feedFromLink } = await import('./lib/feedbase.js?v=12');
+const { feedFromLink } = await import('./lib/feedbase.js?v=16');
 if (DEMO) startModDemo();
 else if (feedFromLink(location)) {                              // #<topic>, #<topic>@<host>, ?feed=<host>#<topic>
-  const { feedFromHash, connectFeed } = await import('./feed.js?v=12');
+  const { feedFromHash, connectFeed } = await import('./feed.js?v=16');
   connectFeed(feedFromHash(location.hash, location.search), (data) => { state = data; render(); });
   addEventListener('hashchange', () => location.reload());   // another channel: start over
 } else {
@@ -190,7 +201,7 @@ function startModDemo() {
         status, effective_status: status,
         step: status === 'working' ? 'demo: checking the queue' : status === 'waiting_user' ? 'demo: need a look' : '',
         since: new Date(Date.now() - (gi * 5 + i) * 60000).toISOString(),
-        last_event: new Date().toISOString(), color: '#5B8DEF', look: null, history: [],
+        last_event: new Date(Date.now() - (gi * 5 + i) * 60000).toISOString(), color: '#5B8DEF', look: null, history: [],
       };
     });
     return { id, name, order: gi + 1, bots: members.map((_, i) => `${id}-${i}`) };
@@ -208,7 +219,7 @@ function startModDemo() {
     const next = b.effective_status === 'working' ? 'idle' : 'working';
     b.status = b.effective_status = next;
     b.step = next === 'working' ? 'demo: passing a note to MoD' : '';
-    b.since = new Date().toISOString();
+    b.since = b.last_event = new Date().toISOString();
     state.feed.unshift({ t: b.since, bot: b.id, name: b.name, status: next, step: b.step });
     state.feed = state.feed.slice(0, 12);
     state.now = b.since;

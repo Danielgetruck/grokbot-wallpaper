@@ -1,6 +1,6 @@
 // State reducer: journal records -> CONTRACT §4 state. Pure in-memory, clock injectable for tests. Runs in Node (the
 // server) and in the browser (the office reading a bots channel on ntfy.sh), so: no Node-only APIs here.
-import { slugify, hashColor, cleanStr, makeTime, parseTime } from './util.js?v=12';
+import { slugify, hashColor, cleanStr, makeTime, parseTime } from './util.js?v=16';
 
 export const LIMITS = {
   MAX_PER_FLOOR: 80,
@@ -21,8 +21,8 @@ const STATUS_MAP = {
   waiting: 'waiting_user', waiting_for_user: 'waiting_user', awaiting_user: 'waiting_user', waiting_input: 'waiting_user',
   failed: 'error', fail: 'error', failure: 'error', errored: 'error',
   finished: 'done', complete: 'done', completed: 'done', success: 'done', succeeded: 'done',
-  running: 'working', busy: 'working', active: 'working', in_progress: 'working',
-  sleeping: 'idle', paused: 'idle', stopped: 'idle',
+  running: 'working', busy: 'working', active: 'working', in_progress: 'working', processing: 'working', work: 'working',
+  sleeping: 'idle', paused: 'idle', stopped: 'idle', offline: 'idle', off: 'idle', resting: 'idle', away: 'idle',
 };
 
 const BUILTIN_FLOORS = [
@@ -197,15 +197,18 @@ export class StateStore {
 
   apply(rec, { replay = false } = {}) {
     if (!rec || typeof rec !== 'object') return;
-    const type = typeof rec.type === 'string' ? rec.type.toLowerCase() : null;
+    const type = typeof rec.type === 'string' ? rec.type.toLowerCase().replace(/[\s-]+/g, '_') : null;
     if (type === 'usage') return this.applyUsage(rec);
     if (type === 'schedule') return this.applySchedule(rec);
-    if (type && type !== 'activity' && type !== 'event') { this.meta.skipped++; return; }
+    if (type && type !== 'activity' && type !== 'event' && type !== 'status' && type !== 'post_status' && type !== 'heartbeat') {
+      this.meta.skipped++;
+      return;
+    }
     this.applyActivity(rec, replay);
   }
 
   applyActivity(rec, replay) {
-    const name = cleanStr(rec.bot, 80);
+    const name = cleanStr(rec.bot || rec.name || rec.agent, 80);
     if (!name) { this.meta.skipped++; return; }
     const id = botIdFor(name);
     let bot = this.bots.get(id);
@@ -219,11 +222,12 @@ export class StateStore {
       this.bots.set(id, bot);
     }
     const now = this.now();
-    let ms = parseTime(rec.t);
+    let ms = parseTime(rec.t ?? rec.updated ?? rec.time);
     if (ms === null || ms > now + 60e3) ms = now;
 
-    const step = cleanStr(rec.step, 160);
-    const status = normalizeStatus(rec.status, !!step, bot.lastMs === null ? null : bot.status);
+    const stepText = rec.step ?? rec.text ?? rec.detail ?? (typeof rec.message === 'string' ? rec.message : '');
+    const step = cleanStr(stepText, 160);
+    const status = normalizeStatus(rec.status ?? rec.state ?? rec.mode, !!step, bot.lastMs === null ? null : bot.status);
 
     if (replay && bot.lastMs !== null) {
       if (ms < bot.lastMs || (ms === bot.lastMs && status === bot.status && step === bot.step)) {
@@ -243,11 +247,14 @@ export class StateStore {
     const group = cleanStr(rec.group, 60);
     if (group) bot.group = group;
     bot.lastMs = bot.lastMs === null ? ms : Math.max(bot.lastMs, ms);
+    const activity = parseTime(rec.last_activity ?? rec.activity_at ?? rec.updated_at ?? rec.updated);
+    bot.activityMs = activity != null ? Math.max(bot.activityMs ?? 0, activity) : bot.lastMs;
     if (rec.listed !== true) bot.seenMs = Math.max(bot.seenMs ?? ms, ms);   // its own line, not a roster entry made for it
 
     bot.history.unshift({ ms, status, step });
     if (bot.history.length > LIMITS.HISTORY) bot.history.length = LIMITS.HISTORY;
-    this.feed.unshift({ ms, id, name: bot.name, status, step });
+    const to = cleanStr(rec.to || rec.target, 80);
+    this.feed.unshift({ ms, id, name: bot.name, status, step, ...(to ? { to } : {}) });
     if (this.feed.length > LIMITS.FEED) this.feed.length = LIMITS.FEED;
 
     const bucket = this.dayBucket(bot, this.time.day(ms).key);
@@ -545,6 +552,8 @@ export class StateStore {
         since: iso(bot.sinceMs),
         last_event: iso(bot.lastMs),
         last_seen: iso(bot.seenMs),
+        last_activity: iso(bot.activityMs ?? bot.lastMs),
+        updated: iso(bot.activityMs ?? bot.lastMs),
         unreported: this.unreportedOf(bot, now),
         usage_pct: pct ?? null,
         usage_share: pct !== undefined && total ? Math.round(Math.min(1, Math.max(0, pct / total)) * 1000) / 1000 : null,
@@ -579,7 +588,7 @@ export class StateStore {
       },
       floors,
       bots,
-      feed: this.feed.map((f) => ({ t: iso(f.ms), bot: f.id, name: f.name, status: f.status, step: f.step })),
+      feed: this.feed.map((f) => ({ t: iso(f.ms), bot: f.id, name: f.name, status: f.status, step: f.step, ...(f.to ? { to: f.to } : {}) })),
       meta: { ...this.meta },
     };
     this.cache = { nowSec: Math.floor(now / 1000), state };

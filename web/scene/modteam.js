@@ -1,8 +1,8 @@
 // The MoD floor: one lead desk in the aisle, family bots in an arc facing it, and the talk between them.
 import * as THREE from 'three';
 import { CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
-import { REDUCED } from './spring.js?v=12';
-import { spawnArc, spawnRipple, setStaticLinks } from './packets.js?v=12';
+import { REDUCED } from './spring.js?v=16';
+import { spawnArc, spawnRipple, setStaticLinks } from './packets.js?v=16';
 
 const LEAD = new THREE.Vector3(2.4, 0.42, -1.2);
 const FAMILY = /^mod/i;

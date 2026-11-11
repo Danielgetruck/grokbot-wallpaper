@@ -17,12 +17,12 @@ import { Pass, FullScreenQuad } from 'three/addons/postprocessing/Pass.js';
 export const STUDIO = {
   centre: [0.48, 0.42],                                   // where the blue pools (fraction of the frame, y down)
   radii: [0.86, 0.8],                                     // ellipse the fall-off reaches its edge colour at
-  stops: [[0, '#1B4E8C'], [0.42, '#0C2348'], [1, '#050910']],
-  shadow: '#07111C',                                      // deep navy, never a flat grey
+  stops: [[0, '#7EB6EA'], [0.48, '#C5DFF6'], [1, '#EAF3FB']],
+  shadow: '#8AA4BE',
   layers: [                                               // sigma (px), push down (px), strength at the silhouette edge
-    { sigma: 4, down: 2, w: 0.40 },                       // contact: a thin dark seam that grounds the edge
-    { sigma: 30, down: 22, w: 0.40 },                     // penumbra: the body of the aura
-    { sigma: 120, down: 70, w: 0.34 },                    // ambient: the long, quiet tail
+    { sigma: 4, down: 2, w: 0.16 },
+    { sigma: 22, down: 10, w: 0.07 },
+    { sigma: 70, down: 24, w: 0.04 },
   ],
 };
 

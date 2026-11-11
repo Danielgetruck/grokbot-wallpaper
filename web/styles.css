@@ -60,10 +60,10 @@
   --alert-ink: color-mix(in srgb, #FFC266 var(--n), #9A5B00);
   --alert-strong: color-mix(in srgb, #FFD590 var(--n), #7A4600);
 
-  /* page + scene backdrop: deep navy into near-black in both day and night (the WebGL studio pass uses the same stops) */
-  --bg-0: color-mix(in srgb, #12325c var(--n), #1B4E8C);
-  --bg-1: color-mix(in srgb, #071422 var(--n), #0C2348);
-  --bg-2: color-mix(in srgb, #02060c var(--n), #050910);
+  /* page + scene backdrop: daytime sky, matching the WebGL studio pass */
+  --bg-0: #7eb6ea;
+  --bg-1: #c5dff6;
+  --bg-2: #eaf3fb;
 
   /* layout */
   --gutter: 24px;
